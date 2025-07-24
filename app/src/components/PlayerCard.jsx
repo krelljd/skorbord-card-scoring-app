@@ -159,7 +159,7 @@ const PlayerCard = ({
         className="player-name-area py-2 px-1 rounded mb-1 flex items-center justify-center gap-2"
         {...(playerNameProps || {})}
       >
-        <h3 className={`text-lg font-semibold text-center ${getPlayerTextColorClass(player)}`}> 
+        <h3 className={`text-xl font-bold text-center ${getPlayerTextColorClass(player)}`}> 
           {player.name}
         </h3>
         {/* Dealer Card Icon - now on the right of name */}
