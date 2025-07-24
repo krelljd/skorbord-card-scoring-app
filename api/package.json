@@ -1,0 +1,39 @@
+{
+  "name": "skorbord-api",
+  "version": "1.0.0",
+  "description": "Skorbord Card Scoring App API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "migrate": "node ./db/migrations/migrationRunner.js",
+    "migrate:down": "echo 'Down migrations not supported by migrationRunner.js'",
+    "migrate:create": "echo 'Create migration manually in db/migrations/'",
+    "sql:execute": "node execute-sql.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^8.1.0",
+    "socket.io": "^4.7.4",
+    "sqlite3": "^5.1.7",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^11.1.0",
+    "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

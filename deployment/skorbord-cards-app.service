@@ -1,0 +1,13 @@
+[Unit]
+Description=Skorbord Cards App (Node.js/Express, serves API and frontend)
+After=network.target
+
+[Service]
+WorkingDirectory=/home/pi/skorbord-cards/api
+ExecStart=/usr/bin/node index.js
+Restart=always
+User=pi
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
