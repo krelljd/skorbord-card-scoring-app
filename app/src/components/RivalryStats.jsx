@@ -152,7 +152,7 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
 
                       return (
                         <div key={player.id} className="card bg-base-100 p-4">
-                          <h2 className={`font-bold text-center mb-4 ${getPlayerTextColorClassByName(player.name, localPlayers)}`}>{player.name}</h2>
+                          <h1 className={`font-bold text-center mb-4 ${getPlayerTextColorClassByName(player.name, localPlayers)}`}>{player.name}</h1>
 
                           <div className="stats stats-vertical shadow w-full">
                             {statFields.map(field => {
@@ -164,18 +164,13 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
                                 desc = `${stats.wins || 0}/${stats.total_games || 0} games`;
                               } else if (field.key === 'last_10_results') {
                                 value = value ? value.split('').join(' ') : 'N/A';
-                                desc = 'Recent form';
                               } else if (field.key === 'max_win_margin') {
-                                desc = 'Biggest victory';
                                 value = value !== undefined && value !== null ? value : 'N/A';
                               } else if (field.key === 'min_win_margin') {
-                                desc = 'Closest victory';
                                 value = value !== undefined && value !== null ? value : 'N/A';
                               } else if (field.key === 'max_loss_margin') {
-                                desc = 'Worst defeat';
                                 value = value !== undefined && value !== null ? value : 'N/A';
                               } else if (field.key === 'min_loss_margin') {
-                                desc = 'Closest defeat';
                                 value = value !== undefined && value !== null ? value : 'N/A';
                               } else {
                                 value = value !== undefined && value !== null ? value : 'N/A';
@@ -185,6 +180,7 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
                                 <div key={field.key} className="stat">
                                   <div className="stat-title text-xs">{field.label}</div>
                                   <div className={`stat-value text-lg ${field.className}`}>{value}</div>
+                                  {desc && <div className="stat-desc text-xs">{desc}</div>}
                                 </div>
                               );
                             })}
@@ -255,7 +251,7 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
                         
                         {/* Right side: Match Score and Game Type */}
                         <div className="timeline-end timeline-box bg-base-100">
-                          <div className="text-lg font-bold mb-1">
+                          <div className="text-lg font-semibold mb-1">
                             {matchScore}
                           </div>
                           <div className="text-xs opacity-75">
