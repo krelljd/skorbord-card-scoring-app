@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { LayoutGroup, motion } from 'framer-motion'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import { getPlayerBadgeColorClassById } from '../utils/playerColors'
 import PlayerCard from './PlayerCard.jsx'
@@ -526,7 +527,7 @@ const GamePlay = ({
             )} 
           </div>
           
-          {/* Reorder Button - positioned on right side */}
+          {/* Reorder Button */}
           {!game.finalized && gameStats.length > 1 && (
             <button
               onClick={() => setIsReorderMode(!isReorderMode)}
@@ -618,6 +619,7 @@ const GamePlay = ({
 }
 
 // Component to handle reorder mode for player cards
+// PlayerCardsList now animates reordering using framer-motion layout animations
 const PlayerCardsList = ({ 
   gameStats, 
   updateScore, 
@@ -651,83 +653,88 @@ const PlayerCardsList = ({
 
   return (
     <div className="space-y-2">
-      {/* Player Cards */}
-      <div className="grid gap-2">
-        {gameStats.map((stat, index) => {
-          // Construct player object for PlayerCard
-          const player = {
-            id: stat.player_id,
-            name: stat.player_name,
-            color: stat.color || 'primary',
-            score: stat.score
-          };
+      {/* Player Cards with animated reordering */}
+      <LayoutGroup>
+        <div className="grid gap-2">
+          {gameStats.map((stat, index) => {
+            // Construct player object for PlayerCard
+            const player = {
+              id: stat.player_id,
+              name: stat.player_name,
+              color: stat.color || 'primary',
+              score: stat.score
+            };
 
-          return (
-            <div
-              key={player.id}
-              className={`
-                player-card-container transition-all duration-200
-                ${isReorderMode ? 'flex items-center gap-2 bg-base-200/10 rounded-lg p-1' : ''}
-              `.trim()}
-            >
-              {/* Reorder buttons - left side */}
-              {isReorderMode && (
-                <div className="flex flex-col gap-1 ml-1">
-                  <button
-                    onClick={() => moveUp(index)}
-                    disabled={index === 0}
-                    className={`btn btn-xs btn-primary ${
-                      index === 0 ? 'btn-disabled opacity-30' : ''
-                    }`}
-                    style={{
-                      minHeight: '1.75rem',
-                      minWidth: '1.75rem',
-                      touchAction: 'manipulation'
-                    }}
-                    title="Move up"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => moveDown(index)}
-                    disabled={index === gameStats.length - 1}
-                    className={`btn btn-xs btn-primary ${
-                      index === gameStats.length - 1 ? 'btn-disabled opacity-30' : ''
-                    }`}
-                    style={{
-                      minHeight: '1.75rem',
-                      minWidth: '1.75rem',
-                      touchAction: 'manipulation'
-                    }}
-                    title="Move down"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
+            return (
+              <motion.div
+                key={player.id}
+                layout
+                transition={{ layout: { duration: 0.22, ease: "easeInOut" } }}
+                className={[
+                  'player-card-container',
+                  isReorderMode ? 'flex items-center gap-2 bg-base-200/10 rounded-lg p-1' : '',
+                  // Remove transition-all/duration-200, framer-motion handles it
+                ].join(' ').trim()}
+              >
+                {/* Reorder buttons - left side */}
+                {isReorderMode && (
+                  <div className="flex flex-col gap-1 ml-1">
+                    <button
+                      onClick={() => moveUp(index)}
+                      disabled={index === 0}
+                      className={`btn btn-xs btn-primary ${
+                        index === 0 ? 'btn-disabled opacity-30' : ''
+                      }`}
+                      style={{
+                        minHeight: '1.75rem',
+                        minWidth: '1.75rem',
+                        touchAction: 'manipulation'
+                      }}
+                      title="Move up"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => moveDown(index)}
+                      disabled={index === gameStats.length - 1}
+                      className={`btn btn-xs btn-primary ${
+                        index === gameStats.length - 1 ? 'btn-disabled opacity-30' : ''
+                      }`}
+                      style={{
+                        minHeight: '1.75rem',
+                        minWidth: '1.75rem',
+                        touchAction: 'manipulation'
+                      }}
+                      title="Move down"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+
+                {/* Player card - full width when not in reorder mode */}
+                <div className={isReorderMode ? 'flex-1 mr-1' : 'w-full'}>
+                  <PlayerCard
+                    player={player}
+                    score={stat.score}
+                    onScoreChange={updateScore}
+                    disabled={loading || gameFinalized || isReorderMode}
+                    scoreTally={scoreTallies[player.id]}
+                    isWinner={winner?.player_id === player.id}
+                    isDealer={dealer === player.id}
+                    onDealerChange={gameFinalized || isReorderMode ? null : cycleDealer}
+                    playerNameProps={{}}
+                  />
                 </div>
-              )}
-
-              {/* Player card - full width when not in reorder mode */}
-              <div className={isReorderMode ? 'flex-1 mr-1' : 'w-full'}>
-                <PlayerCard
-                  player={player}
-                  score={stat.score}
-                  onScoreChange={updateScore}
-                  disabled={loading || gameFinalized || isReorderMode}
-                  scoreTally={scoreTallies[player.id]}
-                  isWinner={winner?.player_id === player.id}
-                  isDealer={dealer === player.id}
-                  onDealerChange={gameFinalized || isReorderMode ? null : cycleDealer}
-                  playerNameProps={{}}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </LayoutGroup>
     </div>
   )
 }
