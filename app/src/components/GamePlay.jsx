@@ -1,8 +1,254 @@
+
 import React, { useState, useEffect, useRef } from 'react'
 import { LayoutGroup, motion } from 'framer-motion'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import { getPlayerBadgeColorClassById } from '../utils/playerColors'
 import PlayerCard from './PlayerCard.jsx'
+
+// Component to handle reorder mode for player cards
+// PlayerCardsList now animates reordering using framer-motion layout animations
+function PlayerCardsList({
+  gameStats,
+  updateScore,
+  updatePlayerOrder,
+  loading,
+  gameFinalized,
+  scoreTallies,
+  winner,
+  dealer,
+  cycleDealer,
+  isReorderMode
+}) {
+  // Custom hook for iOS Safari animation timing optimization
+  const useForceLayoutUpdate = () => {
+    const forceUpdate = React.useCallback(() => {
+      // Force layout recalculation for consistent iOS Safari animations
+      if (typeof window !== 'undefined' && window.getComputedStyle) {
+        const container = document.querySelector('.player-cards-container')
+        if (container) {
+          // Force style recalculation and reflow
+          window.getComputedStyle(container).transform
+          container.offsetHeight
+        }
+      }
+    }, [])
+    
+    return forceUpdate
+  }
+  
+  const forceLayoutUpdate = useForceLayoutUpdate()
+  
+  // iOS Safari optimized reorder functions
+  // Use proper touch event handling and timing for consistent animations
+  const moveUp = React.useCallback((index) => {
+    if (index === 0) return // Already at top
+    
+    const newItems = [...gameStats]
+    const [movedItem] = newItems.splice(index, 1)
+    newItems.splice(index - 1, 0, movedItem)
+    
+    // iOS Safari optimization: Ensure proper timing and force layout recalculation
+    // Use double RAF to ensure DOM is ready for animation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        forceLayoutUpdate()
+        updatePlayerOrder(newItems)
+      })
+    })
+  }, [gameStats, updatePlayerOrder, forceLayoutUpdate])
+
+  const moveDown = React.useCallback((index) => {
+    if (index === gameStats.length - 1) return // Already at bottom
+    
+    const newItems = [...gameStats]
+    const [movedItem] = newItems.splice(index, 1)
+    newItems.splice(index + 1, 0, movedItem)
+    
+    // iOS Safari optimization: Ensure proper timing and force layout recalculation
+    // Use double RAF to ensure DOM is ready for animation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        forceLayoutUpdate()
+        updatePlayerOrder(newItems)
+      })
+    })
+  }, [gameStats, updatePlayerOrder, forceLayoutUpdate])
+
+  return (
+    <LayoutGroup>
+      <motion.div 
+        className="space-y-2 player-cards-container" 
+        layout
+        transition={{
+          layout: {
+            type: "tween",
+            duration: 0.25, // Slightly shorter for more responsive feel
+            ease: [0.4, 0, 0.2, 1] // Custom cubic-bezier for better iOS performance
+          }
+        }}
+        style={{
+          // iOS Safari optimization: Force GPU acceleration
+          willChange: 'transform',
+          transform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden'
+        }}
+      >
+        <motion.div 
+          className="grid gap-2" 
+          layout
+          transition={{
+            layout: {
+              type: "tween", 
+              duration: 0.25, // Match parent duration
+              ease: [0.4, 0, 0.2, 1] // Custom cubic-bezier for better iOS performance
+            }
+          }}
+          style={{
+            // iOS Safari optimization: Force GPU acceleration
+            willChange: 'transform',
+            transform: 'translate3d(0, 0, 0)',
+            backfaceVisibility: 'hidden'
+          }}
+        >
+          {gameStats.map((stat, index) => {
+            // Construct player object for PlayerCard
+            const player = {
+              id: stat.player_id,
+              name: stat.player_name,
+              color: stat.color || 'primary',
+              score: stat.score
+            };
+            return (
+              <motion.div
+                key={player.id}
+                layoutId={String(player.id)}
+                layout
+                transition={{ 
+                  layout: { 
+                    type: "tween",
+                    duration: 0.25, // Shorter duration for snappier feel
+                    ease: [0.4, 0, 0.2, 1] // Custom cubic-bezier optimized for iOS
+                  }
+                }}
+                className={[
+                  'player-card-container',
+                  isReorderMode ? 'flex items-center gap-2 bg-base-200/10 rounded-lg p-1' : '',
+                ].join(' ').trim()}
+                style={{
+                  // iOS Safari optimization: Force hardware acceleration and consistent behavior
+                  willChange: isReorderMode ? 'transform' : 'auto',
+                  transform: 'translate3d(0, 0, 0)', // Force GPU acceleration on iOS
+                  backfaceVisibility: 'hidden', // Prevent flickering on iOS
+                  // Additional iOS optimizations for touch events
+                  WebkitTapHighlightColor: 'transparent',
+                  WebkitTouchCallout: 'none',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none'
+                }}
+              >
+                {/* Reorder buttons - left side */}
+                {isReorderMode && (
+                  <div className="flex flex-col gap-1 ml-1">
+                    <button
+                      onClick={() => moveUp(index)}
+                      onTouchStart={(e) => {
+                        // Prevent iOS Safari delays and ensure immediate response
+                        e.preventDefault()
+                        e.currentTarget.style.transform = 'scale(0.95)'
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault()
+                        e.currentTarget.style.transform = 'scale(1)'
+                        // Ensure the click fires after touch handling
+                        setTimeout(() => moveUp(index), 0)
+                      }}
+                      onTouchCancel={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)'
+                      }}
+                      disabled={index === 0}
+                      className={`btn btn-xs btn-primary ${
+                        index === 0 ? 'btn-disabled opacity-30' : ''
+                      }`}
+                      style={{
+                        minHeight: '1.75rem',
+                        minWidth: '1.75rem',
+                        touchAction: 'manipulation',
+                        // iOS Safari optimizations
+                        WebkitTapHighlightColor: 'transparent',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
+                        backfaceVisibility: 'hidden', // Prevent flickering
+                        transition: 'transform 0.1s ease-out' // Smooth scale transition
+                      }}
+                      title="Move up"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => moveDown(index)}
+                      onTouchStart={(e) => {
+                        // Prevent iOS Safari delays and ensure immediate response
+                        e.preventDefault()
+                        e.currentTarget.style.transform = 'scale(0.95)'
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault()
+                        e.currentTarget.style.transform = 'scale(1)'
+                        // Ensure the click fires after touch handling
+                        setTimeout(() => moveDown(index), 0)
+                      }}
+                      onTouchCancel={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)'
+                      }}
+                      disabled={index === gameStats.length - 1}
+                      className={`btn btn-xs btn-primary ${
+                        index === gameStats.length - 1 ? 'btn-disabled opacity-30' : ''
+                      }`}
+                      style={{
+                        minHeight: '1.75rem',
+                        minWidth: '1.75rem',
+                        touchAction: 'manipulation',
+                        // iOS Safari optimizations
+                        WebkitTapHighlightColor: 'transparent',
+                        WebkitTouchCallout: 'none',
+                        WebkitUserSelect: 'none',
+                        transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
+                        backfaceVisibility: 'hidden', // Prevent flickering
+                        transition: 'transform 0.1s ease-out' // Smooth scale transition
+                      }}
+                      title="Move down"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                {/* Player card - full width when not in reorder mode */}
+                <div className={isReorderMode ? 'flex-1 mr-1' : 'w-full'}>
+                  <PlayerCard
+                    player={player}
+                    score={stat.score}
+                    onScoreChange={updateScore}
+                    disabled={loading || gameFinalized || isReorderMode}
+                    scoreTally={scoreTallies[player.id]}
+                    isWinner={winner?.player_id === player.id}
+                    isDealer={dealer === player.id}
+                    onDealerChange={gameFinalized || isReorderMode ? null : cycleDealer}
+                    playerNameProps={{}}
+                  />
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      </motion.div>
+    </LayoutGroup>
+  );
+}
 
 const GamePlay = ({ 
   sqid, 
@@ -31,137 +277,82 @@ const GamePlay = ({
   // Add reorder mode state
   const [isReorderMode, setIsReorderMode] = useState(false)
   
+  // Score tally state and refs for tracking pending updates
+  const [scoreTallies, setScoreTallies] = useState({})
+  const pendingUpdates = useRef(new Set())
+  const tallyTimeouts = useRef({})
+  
   // Remove modal state, use winner state to control finalize button
   
-  // Score tallies for mini-sessions (3 second fade)
-  const [scoreTallies, setScoreTallies] = useState({}) // playerId -> { total, timeoutId }
-  const tallyTimeouts = useRef({})
-  const pendingUpdates = useRef(new Set()) // Track pending score updates to avoid double-counting
+  // Initialize game state and socket listeners
+  useEffect(() => {
+    if (!game || !socket) return
 
-  // Update local metadata when game prop changes
-  React.useEffect(() => {
-    if (game && (
-      game.game_type_name !== gameMetadata.game_type_name ||
-      game.win_condition_type !== gameMetadata.win_condition_type ||
-      game.win_condition_value !== gameMetadata.win_condition_value
-    )) {
-      setGameMetadata({
-        game_type_name: game.game_type_name,
-        win_condition_type: game.win_condition_type,
-        win_condition_value: game.win_condition_value
-      })
-    }
-  }, [game?.game_type_name, game?.win_condition_type, game?.win_condition_value, gameMetadata])
+    // Initialize game metadata state to prevent flashing
+    setGameMetadata({
+      game_type_name: game.game_type_name,
+      win_condition_type: game.win_condition_type,
+      win_condition_value: game.win_condition_value
+    })
 
-  // Update dealer when game prop changes (e.g., from server updates)
-  React.useEffect(() => {
-    if (game?.dealer_id && game.dealer_id !== dealer) {
+    // Initialize dealer if available
+    if (game.dealer_id) {
       setDealer(game.dealer_id)
     }
-  }, [game?.dealer_id, dealer])
 
-  // Initialize dealer from game prop and load game stats on mount
-  useEffect(() => {
-    if (game?.id) {
-      // Initialize dealer from game data if available
-      if (game.dealer_id) {
-        setDealer(game.dealer_id)
-      }
-      loadGameStats()
-      loadDealerInfo()
+    // Set up socket event listeners
+    socket.on('score_updated', handleScoreUpdate)
+    socket.on('game_completed', handleGameCompleted)
+    socket.on('player_order_updated', handlePlayerOrderUpdate)
+
+    // Clean up socket listeners on unmount
+    return () => {
+      socket.off('score_updated', handleScoreUpdate)
+      socket.off('game_completed', handleGameCompleted)
+      socket.off('player_order_updated', handlePlayerOrderUpdate)
     }
-  }, [game?.id])
+  }, [game, socket])
 
-  // Initialize dealer if none exists and game is not finalized (for legacy games only)
-  const hasInitializedDealer = useRef(false)
+  // Check for winner whenever gameStats changes
   useEffect(() => {
-    // Only initialize dealer if:
-    // 1. We have game stats loaded
-    // 2. No dealer is currently set in both the state AND the game prop
-    // 3. Game is not finalized
-    // 4. We haven't already tried to initialize
-    if (gameStats.length > 0 && dealer === null && !game?.dealer_id && !game.finalized && !hasInitializedDealer.current) {
-      console.log('⚠️ Warning: Game has no dealer set. This should not happen with new games.')
-      console.log('🎯 Initializing random dealer as fallback for legacy game')
-      hasInitializedDealer.current = true
-      initializeRandomDealer()
-    }
-  }, [gameStats, dealer, game?.dealer_id, game.finalized])
-
-  // Reevaluate winner whenever gameStats changes
-  useEffect(() => {
-    if (gameStats && gameStats.length > 0) {
+    if (gameStats.length > 0) {
       checkForWinner(gameStats)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameStats])
+  }, [gameStats, game?.win_condition_value, game?.win_condition_type, game?.finalized])
 
-  // Socket listeners for real-time score updates
-  // Socket listeners for real-time score updates and rivalry stats navigation
+  // Cleanup timeouts on unmount
   useEffect(() => {
-    if (socket && game?.id) {
-      socket.on('score_update', handleScoreUpdate)
-      socket.on('game_completed', handleGameCompleted)
-      socket.on('player_order_updated', handlePlayerOrderUpdate)
-      // Listen for show_rivalry_stats event to navigate all clients
-      socket.on('show_rivalry_stats', (data) => {
-        if (data?.sqid === sqid) {
-          setCurrentView('rivalry-stats')
-        }
+    return () => {
+      // Clear all score tally timeouts
+      Object.values(tallyTimeouts.current).forEach(timeout => {
+        if (timeout) clearTimeout(timeout)
       })
-      // Listen for dealer changes from other clients
-      socket.on('dealer_changed', (data) => {
-        if (data.game_id === game.id) {
-          // Always update dealer state from server broadcasts to maintain consistency
-          setDealer(data.dealer_id)
-          
-          // Also update current game state if available
-          if (data.dealer_id !== undefined) {
-            setCurrentGame(prevGame => ({
-              ...prevGame,
-              dealer_id: data.dealer_id
-            }))
-          }
+      tallyTimeouts.current = {}
+    }
+  }, [])
+
+  // Fetch initial game stats
+  useEffect(() => {
+    const fetchGameStats = async () => {
+      if (!sqid || !game?.id) return
+
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/${sqid}/games/${game.id}/stats`)
+        if (response.ok) {
+          const result = await response.json()
+          setGameStats(result.data || [])
         }
-      })
-
-      return () => {
-        socket.off('score_update', handleScoreUpdate)
-        socket.off('game_completed', handleGameCompleted)
-        socket.off('player_order_updated', handlePlayerOrderUpdate)
-        socket.off('show_rivalry_stats')
-        socket.off('dealer_changed')
+      } catch (err) {
+        console.error('Failed to fetch game stats:', err)
+        setError('Failed to load game stats')
+      } finally {
+        setLoading(false)
       }
     }
-  }, [socket, game?.id, sqid])
 
-  const loadGameStats = async () => {
-    try {
-      const response = await fetch(`/api/${sqid}/games/${game.id}/stats`)
-      if (response.ok) {
-        const data = await response.json()
-        setGameStats(data.data || [])
-      }
-    } catch (err) {
-      console.error('Failed to load game stats:', err)
-      setError('Failed to load game data')
-    }
-  }
-
-  const loadDealerInfo = async () => {
-    try {
-      const response = await fetch(`/api/${sqid}/games/${game.id}`)
-      if (response.ok) {
-        const data = await response.json()
-        // Only update dealer if we don't already have one set
-        if (dealer === null && data.data?.dealer_id) {
-          setDealer(data.data.dealer_id)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load dealer info:', err)
-    }
-  }
+    fetchGameStats()
+  }, [sqid, game?.id])
 
   const initializeRandomDealer = async () => {
     if (gameStats.length === 0) return
@@ -461,6 +652,7 @@ const GamePlay = ({
   }
 
   // Function to update player order
+  // Only update local state in response to the player_order_updated WebSocket event
   const updatePlayerOrder = async (reorderedStats) => {
     if (loading || game.finalized) {
       return
@@ -468,10 +660,9 @@ const GamePlay = ({
 
     try {
       setLoading(true)
-      
       // Extract player IDs in the new order
       const playerOrder = reorderedStats.map(stat => stat.player_id)
-      
+      // Call API to update order, but do NOT update local state here
       const response = await fetch(`/api/${sqid}/games/${game.id}/stats/order`, {
         method: 'PUT',
         headers: {
@@ -484,12 +675,8 @@ const GamePlay = ({
         const errorData = await response.json()
         throw new Error(errorData.message || 'Failed to update player order')
       }
-
-      const result = await response.json()
-      
-      // Update local state with new order from server
-      setGameStats(result.data || [])
-
+      // Do not update local state here; wait for WebSocket event
+      // const result = await response.json()
     } catch (err) {
       console.error('Failed to update player order:', err)
       setError(err.message || 'Failed to update player order')
@@ -537,7 +724,13 @@ const GamePlay = ({
               style={{
                 minHeight: '2.5rem',
                 minWidth: '2.5rem',
-                touchAction: 'manipulation'
+                touchAction: 'manipulation',
+                // iOS Safari optimizations
+                WebkitTapHighlightColor: 'transparent',
+                WebkitTouchCallout: 'none',
+                WebkitUserSelect: 'none',
+                transform: 'translate3d(0, 0, 0)', // Force GPU acceleration
+                backfaceVisibility: 'hidden' // Prevent flickering
               }}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -614,127 +807,6 @@ const GamePlay = ({
           )
         })()}
       </div>
-    </div>
-  )
-}
-
-// Component to handle reorder mode for player cards
-// PlayerCardsList now animates reordering using framer-motion layout animations
-const PlayerCardsList = ({ 
-  gameStats, 
-  updateScore, 
-  updatePlayerOrder, 
-  loading, 
-  gameFinalized, 
-  scoreTallies, 
-  winner, 
-  dealer, 
-  cycleDealer,
-  isReorderMode
-}) => {
-  // Simple reorder functions without drag and drop
-  const moveUp = (index) => {
-    if (index === 0) return // Already at top
-    
-    const newItems = [...gameStats]
-    const [movedItem] = newItems.splice(index, 1)
-    newItems.splice(index - 1, 0, movedItem)
-    updatePlayerOrder(newItems)
-  }
-
-  const moveDown = (index) => {
-    if (index === gameStats.length - 1) return // Already at bottom
-    
-    const newItems = [...gameStats]
-    const [movedItem] = newItems.splice(index, 1)
-    newItems.splice(index + 1, 0, movedItem)
-    updatePlayerOrder(newItems)
-  }
-
-  return (
-    <div className="space-y-2">
-      {/* Player Cards with animated reordering */}
-      <LayoutGroup>
-        <div className="grid gap-2">
-          {gameStats.map((stat, index) => {
-            // Construct player object for PlayerCard
-            const player = {
-              id: stat.player_id,
-              name: stat.player_name,
-              color: stat.color || 'primary',
-              score: stat.score
-            };
-
-            return (
-              <motion.div
-                key={player.id}
-                layout
-                transition={{ layout: { duration: 0.22, ease: "easeInOut" } }}
-                className={[
-                  'player-card-container',
-                  isReorderMode ? 'flex items-center gap-2 bg-base-200/10 rounded-lg p-1' : '',
-                  // Remove transition-all/duration-200, framer-motion handles it
-                ].join(' ').trim()}
-              >
-                {/* Reorder buttons - left side */}
-                {isReorderMode && (
-                  <div className="flex flex-col gap-1 ml-1">
-                    <button
-                      onClick={() => moveUp(index)}
-                      disabled={index === 0}
-                      className={`btn btn-xs btn-primary ${
-                        index === 0 ? 'btn-disabled opacity-30' : ''
-                      }`}
-                      style={{
-                        minHeight: '1.75rem',
-                        minWidth: '1.75rem',
-                        touchAction: 'manipulation'
-                      }}
-                      title="Move up"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => moveDown(index)}
-                      disabled={index === gameStats.length - 1}
-                      className={`btn btn-xs btn-primary ${
-                        index === gameStats.length - 1 ? 'btn-disabled opacity-30' : ''
-                      }`}
-                      style={{
-                        minHeight: '1.75rem',
-                        minWidth: '1.75rem',
-                        touchAction: 'manipulation'
-                      }}
-                      title="Move down"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-
-                {/* Player card - full width when not in reorder mode */}
-                <div className={isReorderMode ? 'flex-1 mr-1' : 'w-full'}>
-                  <PlayerCard
-                    player={player}
-                    score={stat.score}
-                    onScoreChange={updateScore}
-                    disabled={loading || gameFinalized || isReorderMode}
-                    scoreTally={scoreTallies[player.id]}
-                    isWinner={winner?.player_id === player.id}
-                    isDealer={dealer === player.id}
-                    onDealerChange={gameFinalized || isReorderMode ? null : cycleDealer}
-                    playerNameProps={{}}
-                  />
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      </LayoutGroup>
     </div>
   )
 }

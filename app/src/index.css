@@ -395,4 +395,91 @@
       }
     }
   }
+  
+  /* iOS Safari Specific Animation Optimizations */
+  @supports (-webkit-touch-callout: none) {
+    /* Force hardware acceleration for all animated elements on iOS */
+    .player-cards-container,
+    .player-card-container,
+    [data-framer-motion-layout-id] {
+      -webkit-transform: translate3d(0, 0, 0);
+      transform: translate3d(0, 0, 0);
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      -webkit-perspective: 1000px;
+      perspective: 1000px;
+      /* Reduce animation jank on iOS */
+      will-change: transform;
+    }
+    
+    /* Optimize framer-motion layout animations for iOS Safari */
+    [data-framer-motion-layout-id] {
+      /* Prevent iOS Safari layout thrashing */
+      contain: layout style paint;
+      /* Force compositing layer */
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+    
+    /* Improve touch responsiveness during animations on iOS */
+    .player-card-container {
+      /* Better iOS Safari animation performance */
+      -webkit-animation-fill-mode: both;
+      animation-fill-mode: both;
+      -webkit-animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    /* Reduce iOS Safari reflow during layout animations */
+    .grid.gap-2 {
+      /* Use flexbox on iOS for better performance */
+      display: -webkit-flex;
+      display: flex;
+      -webkit-flex-direction: column;
+      flex-direction: column;
+      -webkit-align-items: stretch;
+      align-items: stretch;
+    }
+    
+    /* iOS Safari specific button optimizations for consistent touch response */
+    button {
+      /* Prevent iOS Safari button delays */
+      -webkit-tap-highlight-color: transparent;
+      /* Better iOS touch feedback */
+      -webkit-touch-callout: none;
+      /* Faster touch response */
+      touch-action: manipulation;
+      /* Ensure consistent animation triggering */
+      -webkit-transform: translate3d(0, 0, 0);
+      transform: translate3d(0, 0, 0);
+      /* Force immediate touch response */
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    /* Enhanced button touch handling for reorder controls */
+    .btn-xs {
+      /* Force GPU acceleration for smooth scaling */
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      /* Optimize for quick touch interactions */
+      -webkit-transform-origin: center center;
+      transform-origin: center center;
+      /* Ensure immediate visual feedback */
+      transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    /* iOS Safari specific motion preferences */
+    @media (prefers-reduced-motion: reduce) {
+      .player-cards-container,
+      .player-card-container,
+      [data-framer-motion-layout-id] {
+        /* Respect iOS accessibility settings */
+        -webkit-transition: none !important;
+        transition: none !important;
+        -webkit-animation: none !important;
+        animation: none !important;
+      }
+    }
+  }
 }
