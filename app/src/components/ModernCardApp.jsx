@@ -235,7 +235,7 @@ const ModernCardApp = () => {
                   onClick={() => setCurrentView('setup')}
                   className={currentView === 'setup' ? 'active' : ''}
                 >
-                  Setup
+                  New Game
                 </button>
               </li>
               <li>
@@ -244,7 +244,7 @@ const ModernCardApp = () => {
                   className={currentView === 'playing' ? 'active' : ''}
                   disabled={!gameManager.game}
                 >
-                  Game
+                  Current Game
                 </button>
               </li>
               <li>
@@ -278,7 +278,7 @@ const ModernCardApp = () => {
                 onClick={() => setCurrentView('setup')}
                 className={currentView === 'setup' ? 'active' : ''}
               >
-                Setup
+                New Game
               </button>
             </li>
             <li>
@@ -287,7 +287,7 @@ const ModernCardApp = () => {
                 className={currentView === 'playing' ? 'active' : ''}
                 disabled={!gameManager.game}
               >
-                Game
+                Current Game
               </button>
             </li>
             <li>
