@@ -23,8 +23,8 @@ const GameSetup = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Get favorited game types for randomizer
-  const favoritedGameTypes = gameTypes.filter(gt => gt.is_favorited)
+  // Get favorited game types for randomizer - with defensive programming
+  const favoritedGameTypes = Array.isArray(gameTypes) ? gameTypes.filter(gt => gt.is_favorited) : []
 
   const addPlayer = () => {
     setCustomPlayers([...customPlayers, ''])
@@ -102,7 +102,7 @@ const getRivalryPlayerNames = (rivalry) => {
     setError('')
 
     try {
-      const gameType = gameTypes.find(gt => gt.id === selectedGameType)
+      const gameType = Array.isArray(gameTypes) ? gameTypes.find(gt => gt.id === selectedGameType) : null
       const enteredNames = customPlayers.filter(name => name && name.trim()).map(name => name.trim())
       if (enteredNames.length < 2) {
         setError('At least 2 player names must be filled out')
@@ -157,7 +157,7 @@ const getRivalryPlayerNames = (rivalry) => {
     }
   }
 
-  const selectedGameTypeData = gameTypes.find(gt => gt.id === selectedGameType)
+  const selectedGameTypeData = Array.isArray(gameTypes) ? gameTypes.find(gt => gt.id === selectedGameType) : null
 
   // Always use a safe array for customPlayers in render logic
   const safeCustomPlayers = Array.isArray(customPlayers) ? customPlayers : ['', ''];
@@ -190,7 +190,7 @@ const getRivalryPlayerNames = (rivalry) => {
               setUseCustomCondition(false)
             }}>
             <option value="">Select a game type...</option>
-            {gameTypes.map(gameType => (
+            {Array.isArray(gameTypes) && gameTypes.map(gameType => (
               <option key={gameType.id} value={gameType.id}>
                 {gameType.name}{gameType.is_favorited ? ' ⭐' : ''}
               </option>

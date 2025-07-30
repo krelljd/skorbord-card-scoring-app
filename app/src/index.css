@@ -1,17 +1,54 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
 @plugin "daisyui" {
   themes: light --default, dark --prefersdark;
   
   safelist: [
     "text-primary",
-    "text-secondary",
+    "text-secondary", 
     "text-accent",
     "text-info",
     "text-success",
     "text-warning",
     "text-error",
     "badge-soft",
-    "badge-outline"
+    "badge-outline",
+    "animate-pulse",
+    "animate-bounce",
+    "animate-in",
+    "animate-out",
+    "fade-in",
+    "fade-in-25",
+    "fade-in-50", 
+    "fade-in-75",
+    "fade-out",
+    "zoom-in",
+    "zoom-in-50",
+    "zoom-in-75", 
+    "zoom-in-95",
+    "zoom-out",
+    "slide-in-from-top",
+    "slide-in-from-bottom",
+    "slide-in-from-left",
+    "slide-in-from-right",
+    "duration-150",
+    "duration-300",
+    "duration-500",
+    "duration-700",
+    "delay-75",
+    "delay-150",
+    "delay-300",
+    "ease-in",
+    "ease-out",
+    "ease-in-out",
+    "scale-105",
+    "scale-110",
+    "loading",
+    "loading-spinner",
+    "loading-dots",
+    "loading-ring",
+    "player-reorder-highlight",
+    "player-reorder-status"
   ];
 }
 
@@ -85,10 +122,8 @@
     /* DaisyUI classes: card bg-base-200 shadow-xl are applied in JSX */
   }
 
-  /* Player name area - simplified for reorder mode */
+  /* Player name area */
   .player-name-area {
-    /* DaisyUI design system transitions */
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     /* Text alignment and layout */
     text-align: center;
     display: block;
@@ -162,6 +197,71 @@
   /* Error state - DaisyUI classes applied in JSX */
   
   /* Success state - DaisyUI classes applied in JSX */
+  
+  /* Modern player reorder animation with DaisyUI integration */
+  .player-reorder-highlight {
+    border: 3px solid hsl(var(--p)) !important;
+    border-radius: 0.75rem !important;
+    box-shadow: 
+      0 20px 25px -5px hsl(var(--p) / 0.1),
+      0 10px 10px -5px hsl(var(--p) / 0.04),
+      0 0 0 1px hsl(var(--p) / 0.05),
+      0 0 0 3px hsl(var(--p) / 0.4) !important;
+    background: linear-gradient(135deg, 
+      hsl(var(--p) / 0.08), 
+      hsl(var(--s) / 0.05)) !important;
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+    transform: scale(1.03) !important;
+    z-index: 50 !important;
+    outline: 2px solid hsl(var(--p) / 0.6) !important;
+    outline-offset: 2px !important;
+    /* Temporary debug to make sure it's working */
+    filter: brightness(1.2) !important;
+  }
+  
+  .player-reorder-status {
+    position: relative;
+  }
+  
+  .player-reorder-status::before {
+    content: '';
+    position: absolute;
+    inset: -0.375rem;
+    background: linear-gradient(45deg, 
+      hsl(var(--p) / 0.3), 
+      hsl(var(--s) / 0.3),
+      hsl(var(--a) / 0.2));
+    border-radius: 0.75rem;
+    opacity: 0.8;
+    filter: blur(6px);
+    animation: daisyPulse 2s ease-in-out infinite;
+    z-index: -1;
+  }
+  
+  .player-reorder-status::after {
+    content: '';
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+    width: 1rem;
+    height: 1rem;
+    background: radial-gradient(circle, hsl(var(--su)), hsl(var(--p)));
+    border: 2px solid hsl(var(--b1));
+    border-radius: 50%;
+    animation: daisyPulse 1.5s ease-in-out infinite;
+    box-shadow: 0 0 10px hsl(var(--p) / 0.5);
+  }
+  
+  @keyframes daisyPulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+  }
 }
 
 @layer utilities {
@@ -256,11 +356,6 @@
     }
   }
 
-  /* Smooth transitions for reordering */
-  .player-card-container {
-    transition: transform 0.2s ease, opacity 0.2s ease;
-  }
-
   /* Long press visual feedback - more subtle */
   .long-press-active {
     animation: longPressGlow 3000ms ease-in-out forwards;
@@ -281,61 +376,6 @@
     }
   }
 
-  /* Touch-friendly drag handles */
-  [data-draggable] {
-    transition: transform 0.2s ease, opacity 0.2s ease;
-  }
-
-  [data-draggable]:hover {
-    transform: scale(1.02);
-  }
-
-  [data-draggable]:active {
-    transform: scale(0.98);
-  }
-
-  /* Visual feedback for drop zones */
-  [data-drop-zone] {
-    position: relative;
-    transition: all 0.2s ease;
-  }
-
-  [data-drop-zone].border-t-4 {
-    border-color: hsl(var(--p));
-    transform: translateY(2px);
-  }
-
-  /* Improved dragging feedback */
-  [data-draggable="true"] {
-    transition: all 0.2s ease;
-  }
-
-  [data-draggable="true"]:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  /* Mobile touch optimizations */
-  @media (hover: none) and (pointer: coarse) {
-    /* On touch devices, remove hover effects and optimize for touch */
-    [data-draggable="true"]:hover {
-      transform: none;
-      box-shadow: none;
-    }
-    
-    /* Prevent text selection during touch drag */
-    [data-draggable="true"] * {
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-      user-select: none;
-    }
-  }
-
-  /* Smooth transitions for reordering */
-  .player-card-container {
-    transition: transform 0.2s ease, opacity 0.2s ease;
-  }
-
   /* iOS Safari specific optimizations */
   @supports (-webkit-touch-callout: none) {
     [data-draggable="true"] {
@@ -354,24 +394,6 @@
     .mobile-container {
       padding-top: max(0.75rem, env(safe-area-inset-top));
       padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-    }
-    
-    /* Safari drag interaction improvements */
-    .player-name-area {
-      /* Safari-specific drag enhancements */
-      -webkit-overflow-scrolling: touch;
-      /* Improve touch responsiveness on Safari */
-      touch-action: manipulation;
-      /* Better Safari drag detection */
-      -webkit-user-drag: element;
-      /* Force hardware acceleration for smoother drags */
-      -webkit-transform: translate3d(0, 0, 0);
-      transform: translate3d(0, 0, 0);
-    }
-    
-    /* iOS Safari: Prevent zoom on drag */
-    .player-name-area[draggable="true"] {
-      touch-action: none !important;
     }
     
     /* Compact spacing for smaller screens */
@@ -396,49 +418,17 @@
     }
   }
   
-  /* iOS Safari Specific Animation Optimizations */
+  /* iOS Safari Specific Optimizations */
   @supports (-webkit-touch-callout: none) {
     /* Force hardware acceleration for all animated elements on iOS */
     .player-cards-container,
-    .player-card-container,
-    [data-framer-motion-layout-id] {
+    .player-card-container {
       -webkit-transform: translate3d(0, 0, 0);
       transform: translate3d(0, 0, 0);
       -webkit-backface-visibility: hidden;
       backface-visibility: hidden;
       -webkit-perspective: 1000px;
       perspective: 1000px;
-      /* Reduce animation jank on iOS */
-      will-change: transform;
-    }
-    
-    /* Optimize framer-motion layout animations for iOS Safari */
-    [data-framer-motion-layout-id] {
-      /* Prevent iOS Safari layout thrashing */
-      contain: layout style paint;
-      /* Force compositing layer */
-      -webkit-transform: translateZ(0);
-      transform: translateZ(0);
-    }
-    
-    /* Improve touch responsiveness during animations on iOS */
-    .player-card-container {
-      /* Better iOS Safari animation performance */
-      -webkit-animation-fill-mode: both;
-      animation-fill-mode: both;
-      -webkit-animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-      animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    /* Reduce iOS Safari reflow during layout animations */
-    .grid.gap-2 {
-      /* Use flexbox on iOS for better performance */
-      display: -webkit-flex;
-      display: flex;
-      -webkit-flex-direction: column;
-      flex-direction: column;
-      -webkit-align-items: stretch;
-      align-items: stretch;
     }
     
     /* iOS Safari specific button optimizations for consistent touch response */
@@ -467,19 +457,6 @@
       transform-origin: center center;
       /* Ensure immediate visual feedback */
       transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    /* iOS Safari specific motion preferences */
-    @media (prefers-reduced-motion: reduce) {
-      .player-cards-container,
-      .player-card-container,
-      [data-framer-motion-layout-id] {
-        /* Respect iOS accessibility settings */
-        -webkit-transition: none !important;
-        transition: none !important;
-        -webkit-animation: none !important;
-        animation: none !important;
-      }
     }
   }
 }

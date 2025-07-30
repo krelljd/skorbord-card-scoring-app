@@ -26,8 +26,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         ws: true,
-        timeout: 0,
-        proxyTimeout: 0,
+        rewrite: (path) => path,
         configure: (proxy, options) => {
           proxy.on('error', (err, req, res) => {
             console.log('Proxy error:', err)
@@ -37,6 +36,9 @@ export default defineConfig({
           })
           proxy.on('proxyRes', (proxyRes, req, res) => {
             console.log('Received Response from the Target:', proxyRes.statusCode, req.url)
+          })
+          proxy.on('upgrade', (req, socket, head) => {
+            console.log('Upgrading connection for:', req.url)
           })
         }
       }

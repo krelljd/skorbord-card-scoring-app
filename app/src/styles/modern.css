@@ -1,0 +1,168 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+  
+  safelist: [
+    "btn-primary",
+    "btn-secondary", 
+    "btn-accent",
+    "btn-success",
+    "btn-warning",
+    "btn-error",
+    "badge-primary",
+    "badge-secondary",
+    "badge-accent",
+    "badge-success",
+    "badge-warning",
+    "badge-error",
+    "badge-soft",
+    "badge-outline",
+    "card",
+    "hero",
+    "alert",
+    "loading",
+    "join",
+    "animate-in",
+    "fade-in-25",
+    "zoom-in-95",
+    "scale-105"
+  ];
+}
+
+/* Modern CSS using DaisyUI semantic color system */
+@layer base {
+  html {
+    /* Use DaisyUI semantic colors instead of hardcoded values */
+    background-color: hsl(var(--b1));
+    color: hsl(var(--bc));
+  }
+
+  body {
+    /* Optimized for touch with semantic spacing */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  /* Modern component classes using DaisyUI patterns */
+  .score-button {
+    @apply btn btn-lg w-full aspect-square text-2xl font-bold;
+    @apply transition-all duration-200 ease-in-out;
+    @apply touch-manipulation;
+    min-height: 4rem;
+    min-width: 4rem;
+  }
+  
+  .score-button--increment {
+    @apply btn-success;
+  }
+  
+  .score-button--decrement {
+    @apply btn-error;
+  }
+  
+  .score-button--active {
+    @apply ring-4 ring-opacity-50 scale-105;
+  }
+  
+  .player-card {
+    @apply card bg-base-100 shadow-xl border border-base-300;
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .player-card--winner {
+    @apply ring-4 ring-success ring-offset-2 ring-offset-base-100;
+  }
+  
+  .player-card--glowing {
+    @apply scale-105 ring-4 ring-primary ring-opacity-50;
+    @apply animate-in fade-in-25 zoom-in-95 duration-300;
+  }
+  
+  /* Score tally animation using DaisyUI colors */
+  .score-tally {
+    @apply badge badge-sm absolute -top-2 -right-2;
+    @apply animate-in fade-in-25 zoom-in-95 duration-300;
+    
+    animation: scoreTallyLifecycle 3s ease-in-out forwards;
+  }
+  
+  .score-tally--positive {
+    @apply badge-success;
+  }
+  
+  .score-tally--negative {
+    @apply badge-error;
+  }
+  
+  /* Game layout using semantic spacing */
+  .game-container {
+    @apply container mx-auto max-w-4xl p-4 space-y-6;
+  }
+  
+  .game-header {
+    @apply card bg-base-100 shadow-lg;
+  }
+  
+  .players-grid {
+    @apply grid gap-4;
+    @apply md:grid-cols-2 lg:grid-cols-3;
+  }
+  
+  /* Loading states using DaisyUI components */
+  .loading-game {
+    @apply flex flex-col items-center justify-center min-h-96 gap-4;
+  }
+  
+  .loading-spinner {
+    @apply loading loading-spinner loading-lg text-primary;
+  }
+}
+
+@layer utilities {
+  /* Animation keyframes */
+  @keyframes scoreTallyLifecycle {
+    0% { 
+      opacity: 0; 
+      transform: translateY(-8px) scale(0.8);
+    }
+    15% { 
+      opacity: 1; 
+      transform: translateY(0) scale(1.05);
+    }
+    20% { 
+      opacity: 1; 
+      transform: translateY(0) scale(1);
+    }
+    85% { 
+      opacity: 1; 
+      transform: translateY(0) scale(1);
+    }
+    100% { 
+      opacity: 0; 
+      transform: translateY(-8px) scale(0.9);
+    }
+  }
+  
+  /* Touch optimization utilities */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  
+  /* Responsive utilities for mobile-first */
+  .mobile-optimized {
+    /* Use relative viewport units for better mobile support */
+    min-height: 100dvh;
+    /* Safe area support for notched devices */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Focus styles using semantic colors */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+}

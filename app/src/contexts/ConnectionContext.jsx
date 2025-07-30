@@ -25,14 +25,11 @@ export const ConnectionProvider = ({ children, sqid }) => {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       timeout: 20000,
-      retries: 5,
-      ackTimeout: 10000,
       forceNew: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 3,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 10,
       upgrade: true,
       rememberUpgrade: false,
       ...options
@@ -52,20 +49,22 @@ export const ConnectionProvider = ({ children, sqid }) => {
         return
       }
       
-      // First try: Use Vite proxy (development) or production URL
-      // Second try: Direct connection to API server
+      // First try: Direct connection to API server in development, proxy/production URL otherwise
+      // Second try: Fallback to direct connection
       let socketUrl
       let options = {}
       
       if (attemptNumber === 0) {
-        socketUrl = process.env.NODE_ENV === 'production' ? __API_URL__ : '/'
-        console.log('🔌 Attempt', attemptNumber + 1, '- Connecting via proxy/production URL:', socketUrl)
-      } else {
+        // For development, try direct connection first since proxy seems to have issues
         socketUrl = process.env.NODE_ENV === 'production' ? __API_URL__ : 'http://localhost:2525'
         console.log('🔌 Attempt', attemptNumber + 1, '- Direct connection to API server:', socketUrl)
+      } else {
+        // Fallback: try via proxy for development (if direct fails)
+        socketUrl = process.env.NODE_ENV === 'production' ? __API_URL__ : '/'
+        console.log('🔌 Attempt', attemptNumber + 1, '- Connecting via proxy/production URL:', socketUrl)
         options = {
-          reconnection: false, // Don't auto-reconnect on direct connection
-          timeout: 10000 // Shorter timeout for direct connection
+          reconnection: false, // Don't auto-reconnect on fallback connection
+          timeout: 10000 // Shorter timeout for fallback connection
         }
       }
       

@@ -1,17 +1,29 @@
 
-import { Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import CardApp from './components/CardApp.jsx'
+import ModernCardApp from './components/ModernCardApp.jsx'
 import { ConnectionProvider } from './contexts/ConnectionContext.jsx'
+import { GameStateProvider } from './contexts/GameStateContext.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 
 // Wrapper to provide sqid from route params to ConnectionProvider
 function CardAppWithConnection() {
   const { sqid } = useParams()
+  const [searchParams] = useSearchParams()
+  
+  // Allow testing modern version with ?modern=true query parameter
+  const useModernApp = searchParams.get('modern') === 'true'
+  const AppComponent = useModernApp ? ModernCardApp : CardApp
+  
   return (
-    <ConnectionProvider sqid={sqid}>
-
-      <CardApp />
-    </ConnectionProvider>
+    <ErrorBoundary>
+      <ConnectionProvider sqid={sqid}>
+        <GameStateProvider>
+          <AppComponent />
+        </GameStateProvider>
+      </ConnectionProvider>
+    </ErrorBoundary>
   )
 }
 
