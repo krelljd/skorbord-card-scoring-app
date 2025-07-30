@@ -112,31 +112,45 @@ class GameAPI {
     }
     
     const response = await this.request(`/api/${sqid}/games/${gameId}/stats`)
-    return response.data || []
+    return response?.data || []
+  }
+
+  // Simplified method for updating a single player's score
+  async updatePlayerScore(sqid, playerId, change) {
+    // Get active game first
+    const game = await this.getActiveGame(sqid)
+    if (!game?.id) {
+      throw new Error('No active game found')
+    }
+    
+    const response = await this.request(`/api/${sqid}/games/${game.id}/stats`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        player_id: playerId,
+        score_change: change
+      })
+    })
+    return response?.data
   }
 
   async updateScore(sqid, gameId, updates) {
     const response = await this.request(`/api/${sqid}/games/${gameId}/stats`, {
       method: 'POST',
-      body: JSON.stringify({ stats: updates })
+      body: JSON.stringify(updates)
     })
-    return response.data
+    return response?.data
   }
 
-  async updatePlayerOrder(sqid, gameId, playerOrder) {
-    const response = await this.request(`/api/${sqid}/games/${gameId}/player-order`, {
-      method: 'PUT',
-      body: JSON.stringify({ order: playerOrder })
-    })
-    return response.data
-  }
-
-  // Finalize game
-  async finalizeGame(sqid, gameId) {
-    if (!gameId && sqid) {
+  // Finalize game - fixed duplicate method definition
+  async finalizeGame(sqid, gameId = null) {
+    if (!gameId) {
       // If no gameId provided, find current game for sqid
-      const gameData = await this.getGame(sqid)
+      const gameData = await this.getActiveGame(sqid)
       gameId = gameData?.id
+    }
+    
+    if (!gameId) {
+      throw new Error('No active game found to finalize')
     }
     
     const response = await this.request(`/api/${sqid}/games/${gameId}/finalize`, {
@@ -146,10 +160,10 @@ class GameAPI {
   }
 
   // Update player order
-  async updatePlayerOrder(sqid, newOrder) {
-    const response = await this.request(`/api/${sqid}/player-order`, {
+  async updatePlayerOrder(sqid, gameId, playerOrder) {
+    const response = await this.request(`/api/${sqid}/games/${gameId}/player-order`, {
       method: 'PUT',
-      body: JSON.stringify({ order: newOrder })
+      body: JSON.stringify({ order: playerOrder })
     })
     return response?.data
   }

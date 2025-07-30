@@ -85,11 +85,36 @@ const ModernCardApp = () => {
 
   const loadInitialData = async () => {
     try {
-      // Load players, game types, and rivalries (not covered by gameManager yet)
+      // Load players, game types, and rivalries using correct API endpoints
+      const [playersRes, gameTypesRes, rivalriesRes] = await Promise.all([
+        fetch(`${API_URL}/api/${sqid}/players`), // Fixed: players are sqid-specific
+        fetch(`${API_URL}/api/game_types?sqid=${encodeURIComponent(sqid)}`), // Fixed: use correct endpoint with sqid param
+        fetch(`${API_URL}/api/${sqid}/rivalries`) // Fixed: rivalries are sqid-specific
+      ])
+
+      // Check if responses are ok and handle errors properly
+      if (!playersRes.ok && playersRes.status !== 404) {
+        throw new Error(`Failed to load players: ${playersRes.status}`)
+      }
+      if (!gameTypesRes.ok) {
+        throw new Error(`Failed to load game types: ${gameTypesRes.status}`)
+      }
+      if (!rivalriesRes.ok && rivalriesRes.status !== 404) {
+        throw new Error(`Failed to load rivalries: ${rivalriesRes.status}`)
+      }
+
+      // Parse responses with proper error handling
+      const parseResponse = async (response) => {
+        if (response.status === 404 || response.status === 204) {
+          return { data: [] }
+        }
+        return response.json()
+      }
+
       const [playersData, gameTypesData, rivalriesData] = await Promise.all([
-        fetch(`${API_URL}/api/players`).then(res => res.json()),
-        fetch(`${API_URL}/api/game-types`).then(res => res.json()),
-        fetch(`${API_URL}/api/sqids/${sqid}/rivalries`).then(res => res.json())
+        parseResponse(playersRes),
+        parseResponse(gameTypesRes),
+        parseResponse(rivalriesRes)
       ])
 
       // Handle API response structure safely
@@ -103,7 +128,7 @@ const ModernCardApp = () => {
       }
     } catch (error) {
       console.error('Failed to load initial data:', error)
-      setLegacyError('Failed to load application data')
+      setLegacyError('Failed to load application data: ' + error.message)
     } finally {
       setLegacyLoading(false)
     }
@@ -129,14 +154,24 @@ const ModernCardApp = () => {
 
   const handlePlayerUpdate = (data) => {
     console.log('Player updated:', data)
-    // Refresh players list
-    loadInitialData()
+    // Refresh players list safely
+    if (sqid) {
+      loadInitialData().catch(error => {
+        console.error('Failed to reload data after player update:', error)
+        setLegacyError('Failed to refresh player data')
+      })
+    }
   }
 
   const handleRivalryUpdate = (data) => {
     console.log('Rivalry updated:', data)
-    // Refresh rivalries
-    loadInitialData()
+    // Refresh rivalries safely
+    if (sqid) {
+      loadInitialData().catch(error => {
+        console.error('Failed to reload data after rivalry update:', error)
+        setLegacyError('Failed to refresh rivalry data')
+      })
+    }
   }
 
   const handleSocketError = (error) => {
@@ -337,6 +372,9 @@ const ModernCardApp = () => {
           <AdminPanel
             onBackToSetup={() => setCurrentView('setup')}
             sqid={sqid}
+            gameTypes={gameTypes}
+            setGameTypes={setGameTypes}
+            backToSetup={() => setCurrentView('setup')}
           />
         )}
       </div>
