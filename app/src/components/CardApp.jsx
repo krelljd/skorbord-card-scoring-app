@@ -356,48 +356,51 @@ const CardApp = () => {
         </div>
       </div>
 
-      {/* Main content based on current view */}
-      {currentView === 'setup' && (
-        <GameSetup
-          sqid={sqid}
-          gameTypes={gameTypes}
-          players={players}
-          rivalries={rivalries}
-          setCurrentGame={setCurrentGame}
-          setCurrentView={setCurrentView}
-          setPlayers={setPlayers}
-          setRivalries={setRivalries}
-        />
-      )}
-      
-      {currentView === 'playing' && currentGame && (
-        <GamePlay
-          sqid={sqid}
-          game={currentGame}
-          setCurrentGame={setCurrentGame}
-          setCurrentView={setCurrentView}
-          onGameComplete={() => setCurrentView('rivalry-stats')}
-          backToSetup={backToSetup}
-        />
-      )}
-      
-      {currentView === 'rivalry-stats' && (
-        <RivalryStats
-          sqid={sqid}
-          rivalries={rivalries}
-          players={players}
-          backToSetup={backToSetup}
-        />
-      )}
-      
-      {currentView === 'admin' && (
-        <AdminPanel
-          sqid={sqid}
-          gameTypes={gameTypes}
-          setGameTypes={setGameTypes}
-          backToSetup={backToSetup}
-        />
-      )}
+      {/* Main content wrapper with proper flex properties */}
+      <div className="flex-1">
+        {/* Main content based on current view */}
+        {currentView === 'setup' && (
+          <GameSetup
+            sqid={sqid}
+            gameTypes={gameTypes}
+            players={players}
+            rivalries={rivalries}
+            setCurrentGame={setCurrentGame}
+            setCurrentView={setCurrentView}
+            setPlayers={setPlayers}
+            setRivalries={setRivalries}
+          />
+        )}
+        
+        {currentView === 'playing' && currentGame && (
+          <GamePlay
+            sqid={sqid}
+            game={currentGame}
+            setCurrentGame={setCurrentGame}
+            setCurrentView={setCurrentView}
+            onGameComplete={() => setCurrentView('rivalry-stats')}
+            backToSetup={backToSetup}
+          />
+        )}
+        
+        {currentView === 'rivalry-stats' && (
+          <RivalryStats
+            sqid={sqid}
+            rivalries={rivalries}
+            players={players}
+            backToSetup={backToSetup}
+          />
+        )}
+        
+        {currentView === 'admin' && (
+          <AdminPanel
+            sqid={sqid}
+            gameTypes={gameTypes}
+            setGameTypes={setGameTypes}
+            backToSetup={backToSetup}
+          />
+        )}
+      </div>
     </div>
   )
 }

@@ -169,16 +169,123 @@ const ModernCardApp = () => {
 
   // Render main app
   return (
-    <div className="min-h-screen bg-base-100">
-      {/* Connection Status */}
-      <ConnectionStatus />
-      
+    <div className="mobile-container slide-in-bottom">
+      {/* Header with navigation - fixed at top */}
+      <div className="navbar bg-base-200 rounded-lg mb-2">
+        <div className="navbar-start">
+          {/* Mobile dropdown menu */}
+          <div className="dropdown">
+            <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className="h-5 w-5" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M4 6h16M4 12h8m-8 6h16" 
+                />
+              </svg>
+            </div>
+            <ul 
+              tabIndex={0} 
+              className="menu menu-sm dropdown-content bg-base-100 text-base-content rounded-box z-[1] mt-3 w-52 p-2 shadow"
+            >
+              <li>
+                <button 
+                  onClick={() => setCurrentView('setup')}
+                  className={currentView === 'setup' ? 'active' : ''}
+                >
+                  Setup
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => setCurrentView('playing')}
+                  className={currentView === 'playing' ? 'active' : ''}
+                  disabled={!gameManager.game}
+                >
+                  Game
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => setCurrentView('rivalry-stats')}
+                  className={currentView === 'rivalry-stats' ? 'active' : ''}
+                >
+                  Stats
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => setCurrentView('admin')}
+                  className={currentView === 'admin' ? 'active' : ''}
+                >
+                  Admin
+                </button>
+              </li>
+            </ul>
+          </div>
+          
+          {/* Brand/Logo */}
+          <button className="btn btn-ghost text-xl font-bold">Skorbord</button>
+        </div>
+        
+        {/* Desktop horizontal menu */}
+        <div className="navbar-center hidden lg:flex">
+          <ul className="menu menu-horizontal px-1">
+            <li>
+              <button 
+                onClick={() => setCurrentView('setup')}
+                className={currentView === 'setup' ? 'active' : ''}
+              >
+                Setup
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setCurrentView('playing')}
+                className={currentView === 'playing' ? 'active' : ''}
+                disabled={!gameManager.game}
+              >
+                Game
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setCurrentView('rivalry-stats')}
+                className={currentView === 'rivalry-stats' ? 'active' : ''}
+              >
+                Stats
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setCurrentView('admin')}
+                className={currentView === 'admin' ? 'active' : ''}
+              >
+                Admin
+              </button>
+            </li>
+          </ul>
+        </div>
+        
+        {/* Right side */}
+        <div className="navbar-end">
+          <ConnectionStatus />
+        </div>
+      </div>
+
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={hideToast} />
 
       {/* Error Display (if any persist) */}
       {(legacyError || gameManager.error) && (
-        <div className="alert alert-error shadow-lg m-4">
+        <div className="alert alert-error shadow-lg mb-4">
           <div>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -193,8 +300,9 @@ const ModernCardApp = () => {
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      {/* Main Content wrapper with proper flex properties */}
+      <div className="flex-1">
+        {/* Main content based on current view */}
         {currentView === 'setup' && (
           <GameSetup
             players={players}
@@ -231,52 +339,7 @@ const ModernCardApp = () => {
             sqid={sqid}
           />
         )}
-      </main>
-
-      {/* Navigation */}
-      <nav className="btm-nav btm-nav-lg bg-base-200 border-t border-base-300">
-        <button 
-          className={currentView === 'setup' ? 'active' : ''}
-          onClick={() => setCurrentView('setup')}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          <span className="btm-nav-label">Setup</span>
-        </button>
-
-        <button 
-          className={currentView === 'playing' ? 'active' : ''}
-          onClick={() => setCurrentView('playing')}
-          disabled={!gameManager.game}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.5a2.5 2.5 0 110 5H9" />
-          </svg>
-          <span className="btm-nav-label">Game</span>
-        </button>
-
-        <button 
-          className={currentView === 'rivalry-stats' ? 'active' : ''}
-          onClick={() => setCurrentView('rivalry-stats')}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          <span className="btm-nav-label">Stats</span>
-        </button>
-
-        <button 
-          className={currentView === 'admin' ? 'active' : ''}
-          onClick={() => setCurrentView('admin')}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span className="btm-nav-label">Admin</span>
-        </button>
-      </nav>
+      </div>
     </div>
   )
 }

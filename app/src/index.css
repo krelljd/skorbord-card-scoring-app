@@ -164,6 +164,8 @@
     /* Use full viewport height on mobile for better space utilization */
     min-height: 100vh;
     min-height: 100dvh; /* Dynamic viewport height for iOS Safari */
+    display: flex;
+    flex-direction: column;
   }
 
   /* Score display styling */
