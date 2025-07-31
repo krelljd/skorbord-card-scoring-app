@@ -1,9 +1,52 @@
-import { useEffect } from 'react'
+import { useState, useEffect, memo, createContext, useContext } from 'react'
+
+// Toast Context
+const ToastContext = createContext()
 
 /**
- * Modern Toast notification component using DaisyUI alert styles
+ * Toast Provider - manages global toast state
  */
-function Toast({ toast, onClose }) {
+export const ToastProvider = ({ children }) => {
+  const [toasts, setToasts] = useState([])
+
+  const addToast = (message, type = 'info', duration = 5000) => {
+    const id = Date.now() + Math.random()
+    const toast = { id, message, type, duration }
+    setToasts(prev => [...prev, toast])
+    return id
+  }
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id))
+  }
+
+  const clearAllToasts = () => {
+    setToasts([])
+  }
+
+  return (
+    <ToastContext.Provider value={{ toasts, addToast, removeToast, clearAllToasts }}>
+      {children}
+      <ToastContainer />
+    </ToastContext.Provider>
+  )
+}
+
+/**
+ * Hook to use toast functionality
+ */
+export const useToast = () => {
+  const context = useContext(ToastContext)
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider')
+  }
+  return context
+}
+
+/**
+ * Individual Toast component
+ */
+const Toast = memo(({ toast, onClose }) => {
   const { id, message, type, duration } = toast
 
   useEffect(() => {
@@ -73,13 +116,17 @@ function Toast({ toast, onClose }) {
       </button>
     </div>
   )
-}
+})
+
+Toast.displayName = 'Toast'
 
 /**
- * Toast container component
+ * Toast container component - now uses context
  */
-function ToastContainer({ toasts, onClose }) {
-  if (!toasts.length) return null
+const ToastContainer = memo(() => {
+  const { toasts, removeToast } = useToast()
+
+  if (!toasts || !toasts.length) return null
 
   return (
     <div className="fixed top-4 right-4 z-50 w-80 max-w-sm space-y-2">
@@ -87,11 +134,13 @@ function ToastContainer({ toasts, onClose }) {
         <Toast
           key={toast.id}
           toast={toast}
-          onClose={onClose}
+          onClose={removeToast}
         />
       ))}
     </div>
   )
-}
+})
+
+ToastContainer.displayName = 'ToastContainer'
 
 export { Toast, ToastContainer }

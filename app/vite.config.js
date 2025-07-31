@@ -56,11 +56,31 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          // Separate vendor libraries
           vendor: ['react', 'react-dom'],
           router: ['react-router-dom'],
-          socket: ['socket.io-client']
+          socket: ['socket.io-client'],
+          
+          // Separate UI components for better caching
+          ui: ['daisyui'],
+          
+          // Separate admin components for code splitting
+          admin: [
+            './src/components/AdminPanel.jsx',
+            './src/components/RivalryStats.jsx'
+          ]
         }
       }
+    },
+    // Optimize bundle size
+    minify: 'esbuild',
+    chunkSizeWarningLimit: 1000,
+    
+    // Tree shaking optimization
+    treeshake: {
+      moduleSideEffects: false,
+      propertyReadSideEffects: false,
+      unknownGlobalSideEffects: false
     }
   },
   define: {

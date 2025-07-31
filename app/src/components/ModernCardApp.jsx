@@ -1,385 +1,284 @@
-import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useState, useEffect, memo } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
-import { useGameManager } from '../hooks/useGameManager.js'
-import { useToast } from '../hooks/useUIState.js'
-import { parseError, logError } from '../utils/errorUtils.js'
-import GameSetup from './GameSetup.jsx'
+import { GameStateProvider } from '../contexts/GameStateContext.jsx'
+import ErrorBoundary from './ErrorBoundary.jsx'
+import { ToastProvider } from './Toast.jsx'
+import { useAppData } from '../hooks/useAppData.js'
+
+// Modern components
+import GameSetup from './modern/GameSetup.jsx'
+import GamePlay from './modern/GamePlay.jsx'
 import ConnectionStatus from './ConnectionStatus.jsx'
-import GamePlay from './GamePlay.jsx'
+
+// Lazy-loaded admin components for better performance
+import { LazyAdminPanel, LazyRivalryStats } from './LazyComponents.jsx'
+
+// Legacy components for fallback during migration
+import LegacyGameSetup from './GameSetup.jsx'
+import LegacyGamePlay from './GamePlay.jsx'
 import RivalryStats from './RivalryStats.jsx'
 import AdminPanel from './AdminPanel.jsx'
-import { ToastContainer } from './Toast.jsx'
-import { LoadingOverlay } from './Loading.jsx'
 
 /**
- * Modern CardApp component that integrates new state management alongside existing functionality
- * Phase 1: Both old and new systems work together for gradual migration
+ * Modern CardApp component with migration support
+ * - Modern architecture with context-based state management
+ * - Code splitting for admin views
+ * - Error boundaries for reliability
+ * - Performance optimizations with memoization
+ * - Fallback to legacy components during migration
  */
 const ModernCardApp = () => {
   const { sqid } = useParams()
-  const { socket, isConnected } = useConnection()
+  const [searchParams] = useSearchParams()
+  const { isConnected } = useConnection()
   
-  // Legacy state (keeping for backwards compatibility during Phase 1)
-  const [currentView, setCurrentView] = useState('setup')
-  const [players, setPlayers] = useState([])
-  const [gameTypes, setGameTypes] = useState([])
-  const [rivalries, setRivalries] = useState([])
-  const [legacyError, setLegacyError] = useState(null)
-  const [legacyLoading, setLegacyLoading] = useState(true)
+  // Load app data (game types, players, rivalries)
+  const { 
+    gameTypes, 
+    players, 
+    rivalries, 
+    setGameTypes, 
+    setPlayers, 
+    setRivalries,
+    loading: dataLoading, 
+    error: dataError 
+  } = useAppData(sqid)
+  
+  // Check if we should use modern components (default to true for Phase 5)
+  const useModern = searchParams.get('modern') !== 'false' // Default to modern
+  
+  // App state - simplified with modern state management
+  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
+  const [loading, setLoading] = useState(true)
 
-  // Modern state management
-  const gameManager = useGameManager(sqid)
-  const { toasts, showToast, hideToast, error: showError, success: showSuccess } = useToast()
-
-  // Combined loading state
-  const isLoading = legacyLoading || gameManager.loading
-
-  // Combined error handling
+  // Initialize app when connection is ready and data is loaded
   useEffect(() => {
-    if (gameManager.error) {
-      const errorMessage = parseError(gameManager.error).message
-      showError(errorMessage)
-      logError(gameManager.error, { component: 'CardApp', sqid })
-    }
-  }, [gameManager.error, showError, sqid])
-
-  useEffect(() => {
-    if (legacyError) {
-      showError(legacyError)
-    }
-  }, [legacyError, showError])
-
-  // Use relative paths since we have Vite proxy configured
-  const API_URL = ''
-
-  // Initialize data when socket connects
-  useEffect(() => {
-    if (socket && isConnected && sqid) {
-      setLegacyLoading(true)
-      setLegacyError(null)
-
-      // Join the sqid room (now required for all connections)
-      socket.emit('join-sqid', sqid)
-      
-      // Load initial data (legacy approach for non-game data)
-      loadInitialData()
-
-      // Socket event listeners for real-time updates
-      socket.on('game_updated', handleGameUpdate)
-      socket.on('game_started', handleGameStarted)
-      socket.on('dealer_changed', handleDealerChanged)
-      socket.on('player_updated', handlePlayerUpdate)
-      socket.on('rivalry_updated', handleRivalryUpdate)
-      socket.on('error', handleSocketError)
-
-      return () => {
-        socket.off('game_updated', handleGameUpdate)
-        socket.off('game_started', handleGameStarted)
-        socket.off('player_updated', handlePlayerUpdate)
-        socket.off('rivalry_updated', handleRivalryUpdate)
-        socket.off('error', handleSocketError)
-      }
-    }
-  }, [socket, isConnected, sqid])
-
-  const loadInitialData = async () => {
-    try {
-      // Load players, game types, and rivalries using correct API endpoints
-      const [playersRes, gameTypesRes, rivalriesRes] = await Promise.all([
-        fetch(`${API_URL}/api/${sqid}/players`), // Fixed: players are sqid-specific
-        fetch(`${API_URL}/api/game_types?sqid=${encodeURIComponent(sqid)}`), // Fixed: use correct endpoint with sqid param
-        fetch(`${API_URL}/api/${sqid}/rivalries`) // Fixed: rivalries are sqid-specific
-      ])
-
-      // Check if responses are ok and handle errors properly
-      if (!playersRes.ok && playersRes.status !== 404) {
-        throw new Error(`Failed to load players: ${playersRes.status}`)
-      }
-      if (!gameTypesRes.ok) {
-        throw new Error(`Failed to load game types: ${gameTypesRes.status}`)
-      }
-      if (!rivalriesRes.ok && rivalriesRes.status !== 404) {
-        throw new Error(`Failed to load rivalries: ${rivalriesRes.status}`)
-      }
-
-      // Parse responses with proper error handling
-      const parseResponse = async (response) => {
-        if (response.status === 404 || response.status === 204) {
-          return { data: [] }
+    const initializeApp = async () => {
+      if (isConnected && sqid && !dataLoading) {
+        try {
+          // Check if there's an active game
+          const activeGameRes = await fetch(`/api/${sqid}/games/active`)
+          if (activeGameRes.ok) {
+            const activeGameData = await activeGameRes.json()
+            if (activeGameData.data && !activeGameData.data.finalized) {
+              // Found an active game, navigate to playing view
+              setCurrentView('playing')
+              setLoading(false)
+              return
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to check for active game:', err)
+          // Continue with normal initialization even if active game check fails
         }
-        return response.json()
+        
+        // No active game found, stay on setup view
+        setLoading(false)
       }
-
-      const [playersData, gameTypesData, rivalriesData] = await Promise.all([
-        parseResponse(playersRes),
-        parseResponse(gameTypesRes),
-        parseResponse(rivalriesRes)
-      ])
-
-      // Handle API response structure safely
-      setPlayers(Array.isArray(playersData) ? playersData : (playersData?.data || []))
-      setGameTypes(Array.isArray(gameTypesData) ? gameTypesData : (gameTypesData?.data || []))
-      setRivalries(Array.isArray(rivalriesData) ? rivalriesData : (rivalriesData?.data || []))
-
-      // Show current game if it exists (gameManager handles this)
-      if (gameManager.game) {
-        setCurrentView('playing')
-      }
-    } catch (error) {
-      console.error('Failed to load initial data:', error)
-      setLegacyError('Failed to load application data: ' + error.message)
-    } finally {
-      setLegacyLoading(false)
     }
-  }
 
-  // Legacy event handlers (keeping for backwards compatibility)
-  const handleGameUpdate = (data) => {
-    console.log('Game updated:', data)
-    // Game updates are now handled by gameManager
-    showSuccess('Game updated')
-  }
-
-  const handleGameStarted = (data) => {
-    console.log('Game started:', data)
-    setCurrentView('playing')
-    showSuccess('Game started!')
-  }
-
-  const handleDealerChanged = (data) => {
-    console.log('Dealer changed:', data)
-    showSuccess(`Dealer changed to ${data.playerName}`)
-  }
-
-  const handlePlayerUpdate = (data) => {
-    console.log('Player updated:', data)
-    // Refresh players list safely
-    if (sqid) {
-      loadInitialData().catch(error => {
-        console.error('Failed to reload data after player update:', error)
-        setLegacyError('Failed to refresh player data')
-      })
-    }
-  }
-
-  const handleRivalryUpdate = (data) => {
-    console.log('Rivalry updated:', data)
-    // Refresh rivalries safely
-    if (sqid) {
-      loadInitialData().catch(error => {
-        console.error('Failed to reload data after rivalry update:', error)
-        setLegacyError('Failed to refresh rivalry data')
-      })
-    }
-  }
-
-  const handleSocketError = (error) => {
-    console.error('Socket error:', error)
-    setLegacyError(error.message || 'Connection error')
-  }
-
-  // Modern game event handlers
-  const handleGameCreated = (game) => {
-    // Game creation is now handled by gameManager
-    setCurrentView('playing')
-    showSuccess('Game created successfully!')
-  }
-
-  const handleGameFinalized = () => {
-    showSuccess('Game finalized!')
-    setCurrentView('rivalry-stats')
-  }
-
-  // Error clearing
-  const clearErrors = () => {
-    setLegacyError(null)
-    gameManager.clearError()
-  }
+    initializeApp()
+  }, [isConnected, sqid, dataLoading])
 
   // Render loading state
-  if (isLoading) {
-    return <LoadingOverlay message="Loading Skorbord..." />
-  }
-
-  // Render main app
-  return (
-    <div className="mobile-container slide-in-bottom">
-      {/* Header with navigation - fixed at top */}
-      <div className="navbar bg-base-200 rounded-lg mb-2">
-        <div className="navbar-start">
-          {/* Mobile dropdown menu */}
-          <div className="dropdown">
-            <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-5 w-5" 
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth="2" 
-                  d="M4 6h16M4 12h8m-8 6h16" 
-                />
-              </svg>
-            </div>
-            <ul 
-              tabIndex={0} 
-              className="menu menu-sm dropdown-content bg-base-100 text-base-content rounded-box z-[1] mt-3 w-52 p-2 shadow"
-            >
-              <li>
-                <button 
-                  onClick={() => setCurrentView('setup')}
-                  className={currentView === 'setup' ? 'active' : ''}
-                >
-                  New Game
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => setCurrentView('playing')}
-                  className={currentView === 'playing' ? 'active' : ''}
-                  disabled={!gameManager.game}
-                >
-                  Current Game
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => setCurrentView('rivalry-stats')}
-                  className={currentView === 'rivalry-stats' ? 'active' : ''}
-                >
-                  Stats
-                </button>
-              </li>
-              <li>
-                <button 
-                  onClick={() => setCurrentView('admin')}
-                  className={currentView === 'admin' ? 'active' : ''}
-                >
-                  Admin
-                </button>
-              </li>
-            </ul>
-          </div>
-          
-          {/* Brand/Logo */}
-          <button className="btn btn-ghost text-xl font-bold">Skorbord</button>
-        </div>
-        
-        {/* Desktop horizontal menu */}
-        <div className="navbar-center hidden lg:flex">
-          <ul className="menu menu-horizontal px-1">
-            <li>
-              <button 
-                onClick={() => setCurrentView('setup')}
-                className={currentView === 'setup' ? 'active' : ''}
-              >
-                New Game
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => setCurrentView('playing')}
-                className={currentView === 'playing' ? 'active' : ''}
-                disabled={!gameManager.game}
-              >
-                Current Game
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => setCurrentView('rivalry-stats')}
-                className={currentView === 'rivalry-stats' ? 'active' : ''}
-              >
-                Stats
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => setCurrentView('admin')}
-                className={currentView === 'admin' ? 'active' : ''}
-              >
-                Admin
-              </button>
-            </li>
-          </ul>
-        </div>
-        
-        {/* Right side */}
-        <div className="navbar-end">
-          <ConnectionStatus />
+  if (loading || dataLoading) {
+    return (
+      <div className="mobile-container-modern">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="loading loading-spinner loading-lg text-primary"></div>
+          <span className="ml-2 text-base-content">
+            {dataLoading ? 'Loading app data...' : 'Connecting...'}
+          </span>
         </div>
       </div>
+    )
+  }
 
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onClose={hideToast} />
+  // Render error state if no sqid or data error
+  if (!sqid) {
+    return (
+      <div className="mobile-container-modern">
+        <div className="alert alert-error">
+          <span>Invalid game ID. Please check your URL.</span>
+        </div>
+      </div>
+    )
+  }
 
-      {/* Error Display (if any persist) */}
-      {(legacyError || gameManager.error) && (
-        <div className="alert alert-error shadow-lg mb-4">
-          <div>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>{legacyError || gameManager.error}</span>
+  if (dataError) {
+    return (
+      <div className="mobile-container-modern">
+        <div className="alert alert-error">
+          <span>Failed to load app data: {dataError}</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Modern component wrapper
+  const ModernApp = () => (
+    <ErrorBoundary>
+      <ToastProvider>
+        <GameStateProvider sqid={sqid}>
+          <div className="mobile-container-modern">
+            {/* Header with connection status and navigation */}
+            <header className="card bg-base-100 shadow-lg mb-4">
+              <div className="card-body p-4">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-2xl font-bold text-base-content">
+                    Skorbord
+                  </h1>
+                  <ConnectionStatus />
+                </div>
+                
+                {/* Navigation - Always visible */}
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  <button
+                    className={`btn btn-sm ${currentView === 'playing' ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setCurrentView('playing')}
+                  >
+                    Current
+                  </button>
+                  <button
+                    className={`btn btn-sm ${currentView === 'setup' ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setCurrentView('setup')}
+                  >
+                    New Game
+                  </button>
+                  
+                  <button
+                    className={`btn btn-sm ${currentView === 'rivalry-stats' ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setCurrentView('rivalry-stats')}
+                  >
+                    Stats
+                  </button>
+                  <button
+                    className={`btn btn-sm ${currentView === 'admin' ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setCurrentView('admin')}
+                  >
+                    Admin
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            {/* Main content */}
+            <main className="flex-1">
+              {currentView === 'setup' && (
+                <GameSetup 
+                  sqid={sqid} 
+                  gameTypes={gameTypes}
+                  players={players}
+                  rivalries={rivalries}
+                  onGameStart={() => setCurrentView('playing')}
+                />
+              )}
+              
+              {currentView === 'playing' && (
+                <GamePlay sqid={sqid} />
+              )}
+              
+              {currentView === 'rivalry-stats' && (
+                <LazyRivalryStats 
+                  sqid={sqid} 
+                  rivalries={rivalries}
+                  players={players}
+                  backToSetup={() => setCurrentView('setup')}
+                />
+              )}
+              
+              {currentView === 'admin' && (
+                <LazyAdminPanel 
+                  sqid={sqid} 
+                  gameTypes={gameTypes}
+                  setGameTypes={setGameTypes}
+                  backToSetup={() => setCurrentView('setup')}
+                />
+              )}
+            </main>
           </div>
-          <div className="flex-none">
-            <button className="btn btn-sm btn-ghost" onClick={clearErrors}>
-              Dismiss
-            </button>
-          </div>
+        </GameStateProvider>
+      </ToastProvider>
+    </ErrorBoundary>
+  )
+
+  // Legacy component wrapper for fallback
+  const LegacyApp = () => (
+    <div className="mobile-container">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Skorbord Cards</h1>
+        <ConnectionStatus />
+      </div>
+      
+      {/* Legacy navigation */}
+      {currentView !== 'setup' && (
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <button
+            className={`btn btn-sm ${currentView === 'playing' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setCurrentView('playing')}
+          >
+            Game
+          </button>
+          <button
+            className={`btn btn-sm ${currentView === 'rivalry-stats' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setCurrentView('rivalry-stats')}
+          >
+            Stats
+          </button>
+          <button
+            className={`btn btn-sm ${currentView === 'admin' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setCurrentView('admin')}
+          >
+            Admin
+          </button>
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={() => setCurrentView('setup')}
+          >
+            New Game
+          </button>
         </div>
       )}
 
-      {/* Main Content wrapper with proper flex properties */}
-      <div className="flex-1">
-        {/* Main content based on current view */}
-        {currentView === 'setup' && (
-          <GameSetup
-            players={players}
-            gameTypes={gameTypes}
-            onGameCreated={handleGameCreated}
-            onPlayerAdded={() => loadInitialData()}
-            sqid={sqid}
-          />
-        )}
-
-        {currentView === 'playing' && gameManager.game && (
-          <GamePlay
-            game={gameManager.game}
-            gameStats={gameManager.gameStats}
-            onGameFinalized={handleGameFinalized}
-            onBackToSetup={() => setCurrentView('setup')}
-            sqid={sqid}
-            // Pass modern game manager methods
-            gameManager={gameManager}
-          />
-        )}
-
-        {currentView === 'rivalry-stats' && (
-          <RivalryStats
-            rivalries={rivalries}
-            onBackToSetup={() => setCurrentView('setup')}
-            sqid={sqid}
-          />
-        )}
-
-        {currentView === 'admin' && (
-          <AdminPanel
-            onBackToSetup={() => setCurrentView('setup')}
-            sqid={sqid}
-            gameTypes={gameTypes}
-            setGameTypes={setGameTypes}
-            backToSetup={() => setCurrentView('setup')}
-          />
-        )}
-      </div>
+      {/* Legacy content */}
+      {currentView === 'setup' && (
+        <LegacyGameSetup 
+          sqid={sqid} 
+          gameTypes={gameTypes}
+          players={players}
+          rivalries={rivalries}
+          onGameStart={() => setCurrentView('playing')}
+        />
+      )}
+      
+      {currentView === 'playing' && (
+        <LegacyGamePlay sqid={sqid} />
+      )}
+      
+      {currentView === 'rivalry-stats' && (
+        <RivalryStats 
+          sqid={sqid} 
+          rivalries={rivalries}
+          players={players}
+          backToSetup={() => setCurrentView('setup')}
+        />
+      )}
+      
+      {currentView === 'admin' && (
+        <AdminPanel 
+          sqid={sqid} 
+          gameTypes={gameTypes}
+          setGameTypes={setGameTypes}
+          backToSetup={() => setCurrentView('setup')}
+        />
+      )}
     </div>
   )
+
+  // Render modern or legacy based on param
+  return useModern ? <ModernApp /> : <LegacyApp />
 }
 
-export default ModernCardApp
+// Memoize the entire app to prevent unnecessary re-renders
+export default memo(ModernCardApp)

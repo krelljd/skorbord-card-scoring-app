@@ -54,7 +54,7 @@ class ErrorBoundary extends Component {
                   <div className="collapse-content text-xs">
                     <pre className="whitespace-pre-wrap break-words">
                       {this.state.error && this.state.error.toString()}
-                      {this.state.errorInfo.componentStack}
+                      {this.state.errorInfo && this.state.errorInfo.componentStack}
                     </pre>
                   </div>
                 </div>

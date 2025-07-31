@@ -106,7 +106,19 @@ export function useLoading(timeoutMs = 30000) {
     startLoading,
     stopLoading,
     setError: setLoadingError,
-    clearError: () => setError(null)
+    clearError: () => setError(null),
+    // Convenience method for wrapping async operations
+    withLoading: async (asyncFn) => {
+      startLoading()
+      try {
+        return await asyncFn()
+      } catch (err) {
+        setLoadingError(err)
+        throw err
+      } finally {
+        stopLoading()
+      }
+    }
   }
 }
 

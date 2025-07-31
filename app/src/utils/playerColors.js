@@ -1,23 +1,23 @@
-// DaisyUI theme colors for consistent player assignment across the application
+// Modern DaisyUI theme colors for consistent player assignment
 const PLAYER_COLORS = [
-  'primary',
-  'secondary', 
-  'accent',
-  'info',
-  'success',
-  'warning',
-  'error',
-  'neutral'
+  'primary',    // Blue - Default primary color
+  'secondary',  // Purple - Default secondary color  
+  'accent',     // Green - Default accent color
+  'info',       // Cyan - Information color
+  'success',    // Green variant - Success color
+  'warning',    // Yellow - Warning color
+  'error',      // Red - Error color
+  'neutral'     // Gray - Neutral color
 ];
 
 /**
- * Get consistent player color based on player ID
- * Uses modulo operation to cycle through colors for any number of players
+ * Modern semantic color mapping using DaisyUI system
+ * Get consistent player color based on player ID with semantic meaning
  * @param {string|number} playerId - The unique player identifier
- * @returns {string} DaisyUI color name
+ * @returns {string} DaisyUI semantic color name
  */
 export const getPlayerColor = (playerId) => {
-  // Convert to string and then to number to handle both string and numeric IDs
+  // Convert to string and extract numeric value for consistent hashing
   const numericId = parseInt(playerId.toString().replace(/\D/g, '') || '0');
   const colorIndex = numericId % PLAYER_COLORS.length;
   return PLAYER_COLORS[colorIndex];
@@ -43,10 +43,10 @@ export const getPlayerColorByName = (playerName, players = null) => {
 };
 
 /**
- * Get CSS classes for player-specific styling
+ * Modern semantic color class generation using DaisyUI
  * @param {string|number} playerId - The unique player identifier
- * @param {string} type - Type of styling ('text', 'bg', 'badge', 'border')
- * @returns {string} CSS class string
+ * @param {string} type - Type of styling ('text', 'bg', 'badge', 'border', 'btn')
+ * @returns {string} DaisyUI CSS class string
  */
 export const getPlayerColorClasses = (playerId, type = 'text') => {
   const color = getPlayerColor(playerId);
@@ -68,11 +68,11 @@ export const getPlayerColorClasses = (playerId, type = 'text') => {
 };
 
 /**
- * Get CSS classes for player-specific styling by name
+ * Modern semantic color class generation by name using DaisyUI
  * @param {string} playerName - The player's name
  * @param {Array} [players] - Optional array of player objects with id and name
- * @param {string} type - Type of styling ('text', 'bg', 'badge', 'border')
- * @returns {string} CSS class string
+ * @param {string} type - Type of styling ('text', 'bg', 'badge', 'border', 'btn')
+ * @returns {string} DaisyUI CSS class string
  */
 export const getPlayerColorClassesByName = (playerName, players = null, type = 'text') => {
   const color = getPlayerColorByName(playerName, players);
@@ -94,17 +94,17 @@ export const getPlayerColorClassesByName = (playerName, players = null, type = '
 };
 
 /**
- * Safe function to get text color class for players using stored color
- * Returns fallback class if color is not available
+ * Modern safe function to get text color class using semantic DaisyUI colors
+ * Returns semantic fallback class if color is not available
  * @param {Object} player - Player object with color property
- * @returns {string} CSS class string
+ * @returns {string} DaisyUI CSS class string
  */
 export const getPlayerTextColorClass = (player) => {
   if (!player || !player.color) {
-    return 'text-base-content';
+    return 'text-base-content'; // DaisyUI semantic text color
   }
   
-  // Map DaisyUI colors to safe class names
+  // Modern DaisyUI semantic color mapping
   const colorClassMap = {
     'primary': 'text-primary',
     'secondary': 'text-secondary',
@@ -120,17 +120,17 @@ export const getPlayerTextColorClass = (player) => {
 };
 
 /**
- * Safe function to get badge color class for players using stored color
- * Returns fallback class if color is not available
+ * Modern safe function to get badge color class using semantic DaisyUI colors
+ * Returns semantic fallback class if color is not available
  * @param {Object} player - Player object with color property
- * @returns {string} CSS class string
+ * @returns {string} DaisyUI CSS class string
  */
 export const getPlayerBadgeColorClass = (player) => {
   if (!player || !player.color) {
-    return 'badge-neutral';
+    return 'badge-neutral'; // DaisyUI semantic badge color
   }
   
-  // Map DaisyUI colors to safe class names
+  // Modern DaisyUI semantic badge color mapping
   const colorClassMap = {
     'primary': 'badge-primary',
     'secondary': 'badge-secondary',

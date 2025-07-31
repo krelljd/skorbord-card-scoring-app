@@ -126,8 +126,10 @@ class GameAPI {
     const response = await this.request(`/api/${sqid}/games/${game.id}/stats`, {
       method: 'POST',
       body: JSON.stringify({ 
-        player_id: playerId,
-        score_change: change
+        stats: [{
+          player_id: playerId,
+          score: change
+        }]
       })
     })
     return response?.data
@@ -160,10 +162,10 @@ class GameAPI {
   }
 
   // Update player order
-  async updatePlayerOrder(sqid, gameId, playerOrder) {
+  async updatePlayerOrder(sqid, gameId, newOrder) {
     const response = await this.request(`/api/${sqid}/games/${gameId}/player-order`, {
       method: 'PUT',
-      body: JSON.stringify({ order: playerOrder })
+      body: JSON.stringify({ order: newOrder })
     })
     return response?.data
   }
@@ -178,7 +180,7 @@ class GameAPI {
   }
 
   async updateDealer(sqid, gameId, dealerId) {
-    const response = await this.request(`/api/${sqid}/games/${gameId}/dealer`, {
+    const response = await this.request(`/api/${sqid}/games/${gameId}`, {
       method: 'PUT',
       body: JSON.stringify({ dealer_id: dealerId })
     })

@@ -301,27 +301,27 @@
     animation: scoreTallyFadeInOut 3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
-  /* Fade in/out animation for score tally */
+  /* Fade in/out animation for score tally - updated for inline display */
   @keyframes scoreTallyFadeInOut {
     0% { 
       opacity: 0; 
-      transform: translateY(-8px) scale(0.8);
+      transform: translateX(-12px) scale(0.8);
+    }
+    10% { 
+      opacity: 1; 
+      transform: translateX(0) scale(1.1);
     }
     15% { 
       opacity: 1; 
-      transform: translateY(0) scale(1.05);
-    }
-    20% { 
-      opacity: 1; 
-      transform: translateY(0) scale(1);
+      transform: translateX(0) scale(1);
     }
     85% { 
       opacity: 1; 
-      transform: translateY(0) scale(1);
+      transform: translateX(0) scale(1);
     }
     100% { 
       opacity: 0; 
-      transform: translateY(-8px) scale(0.9);
+      transform: translateX(-8px) scale(0.9);
     }
   }
 

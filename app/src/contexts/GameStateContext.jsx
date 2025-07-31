@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback } from 'react'
+import { createContext, useContext, useReducer, useCallback, useRef } from 'react'
 
 // Game state reducer following React best practices
 function gameStateReducer(state, action) {
@@ -13,13 +13,27 @@ function gameStateReducer(state, action) {
       }
     }
     case 'SCORE_UPDATED': {
+      const updatedStats = state.gameStats.map(stat => 
+        stat.player_id === action.payload.playerId
+          ? { ...stat, score: stat.score + action.payload.change }
+          : stat
+      )
+      
       return {
         ...state,
-        gameStats: state.gameStats.map(stat => 
-          stat.player_id === action.payload.playerId
-            ? { ...stat, score: stat.score + action.payload.change }
-            : stat
-        )
+        gameStats: updatedStats
+      }
+    }
+    case 'WINNER_DETECTED': {
+      return {
+        ...state,
+        winner: action.payload.winner
+      }
+    }
+    case 'WINNER_CLEARED': {
+      return {
+        ...state,
+        winner: null
       }
     }
     case 'SCORE_TALLY_ADDED': {
@@ -60,6 +74,7 @@ function gameStateReducer(state, action) {
     case 'DEALER_SET': {
       return {
         ...state,
+        game: state.game ? { ...state.game, dealer_id: action.payload.playerId } : state.game,
         dealer: action.payload.playerId
       }
     }
@@ -78,7 +93,7 @@ function gameStateReducer(state, action) {
 const GameStateContext = createContext(null)
 const GameDispatchContext = createContext(null)
 
-export function GameStateProvider({ children }) {
+export function GameStateProvider({ children, sqid }) {
   const [state, dispatch] = useReducer(gameStateReducer, {
     game: null,
     gameStats: [],
@@ -88,7 +103,8 @@ export function GameStateProvider({ children }) {
     dealer: null,
     loading: false,
     error: null,
-    isReorderMode: false
+    isReorderMode: false,
+    sqid: sqid || null  // Store sqid in state
   })
 
   return (
@@ -120,13 +136,22 @@ export function useGameDispatch() {
 export function useGameActions() {
   const dispatch = useGameDispatch()
   
+  // Store timeout IDs for debounced tally clearing
+  const tallyTimeouts = useRef({})
+  
   const updateScore = useCallback((playerId, change) => {
     dispatch({ type: 'SCORE_UPDATED', payload: { playerId, change } })
     dispatch({ type: 'SCORE_TALLY_ADDED', payload: { playerId, change } })
     
-    // Auto-clear tally after 3 seconds
-    setTimeout(() => {
+    // Clear any existing timeout for this player
+    if (tallyTimeouts.current[playerId]) {
+      clearTimeout(tallyTimeouts.current[playerId])
+    }
+    
+    // Set new timeout to clear tally after 3 seconds of no activity
+    tallyTimeouts.current[playerId] = setTimeout(() => {
       dispatch({ type: 'SCORE_TALLY_CLEARED', payload: { playerId } })
+      delete tallyTimeouts.current[playerId]
     }, 3000)
   }, [dispatch])
   

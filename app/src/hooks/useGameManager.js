@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useGameState, useGameDispatch, useGameActions } from '../contexts/GameStateContext.jsx'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import gameAPI from '../services/gameAPI.js'
@@ -42,11 +42,55 @@ export function useGameManager(sqid) {
     }
   }, [sqid, dispatch, setLoading, setError])
 
+  // Check for winner based on game conditions
+  const checkForWinner = useCallback((stats) => {
+    if (!gameState.game || gameState.game.finalized) return
+
+    const winCondition = gameState.game.win_condition_value
+    const winConditionType = gameState.game.win_condition_type
+    let gameWinner = null
+
+    if (winConditionType === 'win') {
+      // Win condition: first player to reach the target score
+      const qualifiedPlayers = stats.filter(stat => stat.score >= winCondition)
+      if (qualifiedPlayers.length > 0) {
+        gameWinner = qualifiedPlayers.reduce((max, current) =>
+          current.score > max.score ? current : max
+        )
+      }
+    } else if (winConditionType === 'lose') {
+      // Lose condition: when someone hits the target, lowest score wins
+      const anyLoser = stats.some(stat => stat.score >= winCondition)
+      if (anyLoser) {
+        gameWinner = stats.reduce((min, current) =>
+          current.score < min.score ? current : min
+        )
+      }
+    }
+
+    // Update winner state if detected
+    if (gameWinner && gameWinner.player_id !== gameState.winner?.player_id) {
+      dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
+    } else if (!gameWinner && gameState.winner) {
+      dispatch({ type: 'WINNER_CLEARED' })
+    }
+  }, [gameState.game, gameState.winner, dispatch])
+
   // Update player score (optimistic update + server sync)
   const updatePlayerScore = useCallback(async (playerId, change) => {
     try {
       // Optimistic update - immediate UI feedback
       updateScore(playerId, change)
+
+      // Get updated stats for winner checking
+      const updatedStats = gameState.gameStats.map(stat => 
+        stat.player_id === playerId 
+          ? { ...stat, score: stat.score + change }
+          : stat
+      )
+
+      // Check for winner after score update
+      checkForWinner(updatedStats)
 
       // Sync with server
       await gameAPI.updatePlayerScore(sqid, playerId, change)
@@ -66,7 +110,7 @@ export function useGameManager(sqid) {
       updateScore(playerId, -change)
       setError(`Failed to update score: ${error.message}`)
     }
-  }, [sqid, socket, gameState.gameStats, updateScore, setError])
+  }, [sqid, socket, gameState.gameStats, updateScore, setError, checkForWinner])
 
   // Finalize game
   const finalizeGame = useCallback(async () => {
@@ -156,7 +200,26 @@ export function useGameManager(sqid) {
     const handlePlayerReorder = (data) => {
       if (data.sqid === sqid) {
         // Refresh game data to get updated order
-        loadGame()
+        // Use a fresh call instead of the loadGame callback to avoid dependency loop
+        const refreshGameData = async () => {
+          try {
+            const [gameData, statsData] = await Promise.all([
+              gameAPI.getGame(sqid),
+              gameAPI.getGameStats(sqid)
+            ])
+
+            dispatch({
+              type: 'GAME_LOADED',
+              payload: {
+                game: gameData,
+                stats: statsData
+              }
+            })
+          } catch (error) {
+            console.error('Failed to refresh game data:', error)
+          }
+        }
+        refreshGameData()
       }
     }
 
@@ -181,7 +244,7 @@ export function useGameManager(sqid) {
       socket.off('player:reordered', handlePlayerReorder)
       socket.off('game:finalized', handleGameFinalized)
     }
-  }, [socket, isConnected, sqid, dispatch, loadGame])
+  }, [socket, isConnected, sqid, dispatch])
 
   // Load game on mount and sqid change
   useEffect(() => {
@@ -189,6 +252,26 @@ export function useGameManager(sqid) {
       loadGame()
     }
   }, [sqid, loadGame])
+
+  // Set dealer function (moved from useDealerManager for convenience)
+  const setDealer = useCallback(async (playerId) => {
+    try {
+      await gameAPI.setDealer(sqid, playerId)
+      
+      dispatch({
+        type: 'DEALER_SET',
+        payload: { playerId }
+      })
+
+      // Emit to WebSocket
+      if (socket?.connected) {
+        socket.emit('dealer:set', { sqid, playerId })
+      }
+    } catch (error) {
+      console.error('Failed to set dealer:', error)
+      throw error
+    }
+  }, [sqid, socket, dispatch])
 
   return {
     // State
@@ -205,6 +288,7 @@ export function useGameManager(sqid) {
     updatePlayerScore,
     finalizeGame,
     updatePlayerOrder,
+    setDealer,
     
     // Utilities
     isConnected,
@@ -238,5 +322,22 @@ export function useDealerManager(sqid) {
     }
   }, [sqid, socket, dispatch])
 
-  return { setDealer }
+  // Memoize the returned object to prevent unnecessary re-renders
+  const gameManager = useMemo(() => ({
+    ...gameState,
+    loadGame,
+    updatePlayerScore,
+    finalizeGame,
+    setDealer,
+    loading: gameState.loading,
+    error: gameState.error
+  }), [
+    gameState, 
+    loadGame, 
+    updatePlayerScore, 
+    finalizeGame, 
+    setDealer
+  ])
+
+  return gameManager
 }
