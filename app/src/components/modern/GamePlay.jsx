@@ -98,8 +98,11 @@ const GamePlay = ({
         await gameManager.finalizeGame()
         showSuccess('Game finalized successfully!')
         setShowFinalizeConfirm(false)
+        // Navigate to rivalry stats view after finalization
         if (onGameFinalized) {
           onGameFinalized()
+        } else if (typeof setCurrentView === 'function') {
+          setCurrentView('rivalry-stats')
         }
       })
     } catch (error) {
@@ -152,30 +155,21 @@ const GamePlay = ({
                 {game.game_type_name || 'Card Game'}
               </h1>
               <p className="text-base-content/70">
-                {isFinalized ? 'Game Completed' : 'Game in Progress'}
+                Play to <span className='font-bold text-primary'>{game.win_condition_value || 'unknown'}</span>
               </p>
             </div>
             
             {/* Game Actions */}
             <div className="flex flex-wrap gap-2">
-              {!isFinalized && (
-                <>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setDealerModalOpen(true)}
-                  >
-                    Change Dealer
-                  </button>
-                  
-                  <button
-                    className="btn btn-error btn-sm"
-                    onClick={() => setShowFinalizeConfirm(true)}
-                  >
-                    Finalize Game
-                  </button>
-                </>
+              {/* Only show Finalize Game button if there is a winner and game is not finalized */}
+              {!isFinalized && gameState.winner && (
+                <button
+                  className="btn btn-error btn-sm"
+                  onClick={() => setShowFinalizeConfirm(true)}
+                >
+                  Finalize Game
+                </button>
               )}
-              
               {onBackToSetup && (
                 <button
                   className="btn btn-ghost btn-sm"
@@ -186,38 +180,6 @@ const GamePlay = ({
               )}
             </div>
           </div>
-
-          {/* Win Condition Display */}
-          {game.win_condition_type && game.win_condition_value && (
-            <div className="alert alert-info mt-4">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <div>
-                  {game.win_condition_type === 'win' ? 'First to reach' : 'First to go below'} {game.win_condition_value} points
-                </div>
-                <div className="text-xs opacity-70 mt-1">
-                  💡 Tip: Click the 🃏 Dealer badge to cycle to the next dealer
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Winner Display */}
-          {gameState.winner && !isFinalized && (
-            <div className="alert alert-success mt-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <h3 className="font-bold">🎉 {gameState.winner.player_name} Wins!</h3>
-                <div className="text-xs">
-                  {gameState.winner.player_name} has defeated their opponents!
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
