@@ -40,17 +40,46 @@ function gameStateReducer(state, action) {
       const newTallies = { ...state.scoreTallies }
       const playerId = action.payload.playerId
       const change = action.payload.change
-      
-      newTallies[playerId] = {
-        total: (newTallies[playerId]?.total || 0) + change,
-        timestamp: Date.now()
-      }
-      
+      // Always start tally from the incoming change
+      newTallies[playerId] = change
       return { ...state, scoreTallies: newTallies }
+    }
+    case 'SCORE_TALLY_ACCUMULATE': {
+      // Accumulate tally for local actions
+      const { playerId, change } = action.payload
+      const prevTallyObj = state.scoreTallies[playerId]
+      const prevTotal = prevTallyObj && typeof prevTallyObj.total === 'number' ? prevTallyObj.total : 0
+      return {
+        ...state,
+        scoreTallies: {
+          ...state.scoreTallies,
+          [playerId]: {
+            total: prevTotal + change,
+            timestamp: Date.now()
+          }
+        }
+      }
     }
     case 'SCORE_TALLY_CLEARED': {
       const { [action.payload.playerId]: removed, ...remainingTallies } = state.scoreTallies
       return { ...state, scoreTallies: remainingTallies }
+    }
+    case 'SCORE_TALLIES_CLEARED': {
+      return { ...state, scoreTallies: {} }
+    }
+    case 'SCORE_TALLY_SET': {
+      // Set tally for remote events (do not accumulate)
+      const { playerId, change } = action.payload
+      return {
+        ...state,
+        scoreTallies: {
+          ...state.scoreTallies,
+          [playerId]: {
+            total: change,
+            timestamp: Date.now()
+          }
+        }
+      }
     }
     case 'PLAYER_ORDER_UPDATED': {
       return {
@@ -136,23 +165,8 @@ export function useGameDispatch() {
 export function useGameActions() {
   const dispatch = useGameDispatch()
   
-  // Store timeout IDs for debounced tally clearing
-  const tallyTimeouts = useRef({})
-  
   const updateScore = useCallback((playerId, change) => {
     dispatch({ type: 'SCORE_UPDATED', payload: { playerId, change } })
-    dispatch({ type: 'SCORE_TALLY_ADDED', payload: { playerId, change } })
-    
-    // Clear any existing timeout for this player
-    if (tallyTimeouts.current[playerId]) {
-      clearTimeout(tallyTimeouts.current[playerId])
-    }
-    
-    // Set new timeout to clear tally after 3 seconds of no activity
-    tallyTimeouts.current[playerId] = setTimeout(() => {
-      dispatch({ type: 'SCORE_TALLY_CLEARED', payload: { playerId } })
-      delete tallyTimeouts.current[playerId]
-    }, 3000)
   }, [dispatch])
   
   const setLoading = useCallback((loading) => {
@@ -163,5 +177,10 @@ export function useGameActions() {
     dispatch({ type: 'ERROR_SET', payload: error })
   }, [dispatch])
   
-  return { updateScore, setLoading, setError }
+  const clearAllTallies = useCallback(() => {
+    // Clear all tallies from state - timers are managed in useGameManager
+    dispatch({ type: 'SCORE_TALLIES_CLEARED' })
+  }, [dispatch])
+  
+  return { updateScore, setLoading, setError, clearAllTallies }
 }

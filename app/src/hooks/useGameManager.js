@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useGameState, useGameDispatch, useGameActions } from '../contexts/GameStateContext.jsx'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import gameAPI from '../services/gameAPI.js'
@@ -10,7 +10,7 @@ import gameAPI from '../services/gameAPI.js'
 export function useGameManager(sqid) {
   const gameState = useGameState()
   const dispatch = useGameDispatch()
-  const { updateScore, setLoading, setError } = useGameActions()
+  const { updateScore, setLoading, setError, clearAllTallies } = useGameActions()
   const { socket, isConnected } = useConnection()
 
   // Load game data
@@ -34,6 +34,9 @@ export function useGameManager(sqid) {
           stats: statsData
         }
       })
+      if (typeof clearAllTallies === 'function') {
+        clearAllTallies()
+      }
     } catch (error) {
       console.error('Failed to load game:', error)
       setError(error.message)
@@ -77,10 +80,50 @@ export function useGameManager(sqid) {
   }, [gameState.game, gameState.winner, dispatch])
 
   // Update player score (optimistic update + server sync)
+  // Single timer per player for rolling 3-second window
+  const playerTallyTimeouts = useRef({}) // Per-player timeout management
+  const localTallyAccumulator = useRef({}) // Track accumulated changes per player
+  
+  // Per-player timeout management for remote updates (moved to top level)
+  const remoteTallyTimeouts = useRef({})
+  
   const updatePlayerScore = useCallback(async (playerId, change) => {
     try {
       // Optimistic update - immediate UI feedback
       updateScore(playerId, change)
+      
+      // Accumulate tally locally
+      const currentAccumulation = localTallyAccumulator.current[playerId] || 0
+      const newAccumulation = currentAccumulation + change
+      localTallyAccumulator.current[playerId] = newAccumulation
+      
+      dispatch({
+        type: 'SCORE_TALLY_ACCUMULATE',
+        payload: {
+          playerId,
+          change
+        }
+      })
+      
+      // Clear existing timer for this player (rolling window)
+      if (playerTallyTimeouts.current[playerId]) {
+        clearTimeout(playerTallyTimeouts.current[playerId])
+      }
+      
+      // Set new 3-second timer for this specific player (rolling window)
+      playerTallyTimeouts.current[playerId] = setTimeout(() => {
+        // Reset the accumulator for this player
+        localTallyAccumulator.current[playerId] = 0
+        
+        // Clear only this player's tally from UI
+        dispatch({
+          type: 'SCORE_TALLY_CLEARED',
+          payload: { playerId }
+        })
+        
+        // Clean up the timeout reference
+        delete playerTallyTimeouts.current[playerId]
+      }, 3000)
 
       // Get updated stats for winner checking
       const updatedStats = gameState.gameStats.map(stat => 
@@ -92,25 +135,42 @@ export function useGameManager(sqid) {
       // Check for winner after score update
       checkForWinner(updatedStats)
 
-      // Sync with server
+      // Sync with server (individual change) - this updates the database
       await gameAPI.updatePlayerScore(sqid, playerId, change)
 
-      // Emit to WebSocket for real-time updates to other clients
+      // Send WebSocket event immediately with accumulated total
+      // Backend will exclude this client from receiving the broadcast
       if (socket?.connected) {
-        socket.emit('score:updated', {
+        const updatedPlayerScore = gameState.gameStats.find(s => s.player_id === playerId)?.score || 0
+        
+        socket.emit('update_score', {
           sqid,
           playerId,
-          change,
-          newScore: gameState.gameStats.find(s => s.player_id === playerId)?.score + change
+          change: newAccumulation, // Send the total accumulated change
+          newScore: updatedPlayerScore + change, // Updated score after this individual change
+          isAccumulated: true, // Flag to indicate this is an accumulated total
+          timestamp: Date.now() // Add timestamp to help with ordering
         })
       }
+
     } catch (error) {
       console.error('Failed to update score:', error)
       // Revert optimistic update
       updateScore(playerId, -change)
+      
+      // Also revert the accumulator
+      const currentAccumulation = localTallyAccumulator.current[playerId] || 0
+      localTallyAccumulator.current[playerId] = Math.max(0, currentAccumulation - change)
+      
+      // Clear the timeout for this player since the update failed
+      if (playerTallyTimeouts.current[playerId]) {
+        clearTimeout(playerTallyTimeouts.current[playerId])
+        delete playerTallyTimeouts.current[playerId]
+      }
+      
       setError(`Failed to update score: ${error.message}`)
     }
-  }, [sqid, socket, gameState.gameStats, updateScore, setError, checkForWinner])
+  }, [sqid, socket, gameState.gameStats, updateScore, setError, checkForWinner, dispatch])
 
   // Finalize game
   const finalizeGame = useCallback(async () => {
@@ -186,13 +246,55 @@ export function useGameManager(sqid) {
     // Listen for score updates from other clients
     const handleScoreUpdate = (data) => {
       if (data.sqid === sqid) {
+        console.debug('[WS] handleScoreUpdate received from another client:', data)
+        
+        // Display the accumulated total received from the sender
+        // Use SCORE_TALLY_SET to show exactly what was sent (no local accumulation)
         dispatch({
-          type: 'SCORE_UPDATED',
+          type: 'SCORE_TALLY_SET',
           payload: {
             playerId: data.playerId,
-            change: data.change
+            change: data.change // This is the total accumulated change from the sender
           }
         })
+        
+        // Clear any existing timeout for this player (rolling window)
+        if (remoteTallyTimeouts.current[data.playerId]) {
+          clearTimeout(remoteTallyTimeouts.current[data.playerId])
+        }
+        
+        // Set new 3-second timer for this specific player (rolling window)
+        remoteTallyTimeouts.current[data.playerId] = setTimeout(() => {
+          dispatch({
+            type: 'SCORE_TALLY_CLEARED',
+            payload: { playerId: data.playerId }
+          })
+          
+          // Clean up the timeout reference
+          delete remoteTallyTimeouts.current[data.playerId]
+        }, 3000)
+        
+        // Fetch latest game stats immediately to sync with server state
+        // No debouncing needed since this client won't receive its own events
+        const refreshGameData = async () => {
+          try {
+            const [gameData, statsData] = await Promise.all([
+              gameAPI.getGame(sqid),
+              gameAPI.getGameStats(sqid)
+            ])
+            dispatch({
+              type: 'GAME_LOADED',
+              payload: {
+                game: gameData,
+                stats: statsData
+              }
+            })
+            checkForWinner(statsData)
+          } catch (error) {
+            console.error('Failed to refresh game data after score update:', error)
+          }
+        }
+        refreshGameData()
       }
     }
 
@@ -223,6 +325,31 @@ export function useGameManager(sqid) {
       }
     }
 
+    // Listen for dealer change from other clients (legacy event)
+    const handleDealerChanged = (data) => {
+      if (data.sqid === sqid) {
+        // Fetch latest game and stats from API to ensure fresh state
+        const refreshGameData = async () => {
+          try {
+            const [gameData, statsData] = await Promise.all([
+              gameAPI.getGame(sqid),
+              gameAPI.getGameStats(sqid)
+            ])
+            dispatch({
+              type: 'GAME_LOADED',
+              payload: {
+                game: gameData,
+                stats: statsData
+              }
+            })
+          } catch (error) {
+            console.error('Failed to refresh game data after dealer_changed:', error)
+          }
+        }
+        refreshGameData()
+      }
+    }
+
     // Listen for game finalization from other clients
     const handleGameFinalized = (data) => {
       if (data.sqid === sqid) {
@@ -235,16 +362,27 @@ export function useGameManager(sqid) {
       }
     }
 
-    socket.on('score:updated', handleScoreUpdate)
+    socket.on('score_update', handleScoreUpdate)
+    socket.on('player_activity', handlePlayerReorder) // If player_activity is used for reordering
     socket.on('player:reordered', handlePlayerReorder)
+    socket.on('dealer_changed', handleDealerChanged)
     socket.on('game:finalized', handleGameFinalized)
 
     return () => {
-      socket.off('score:updated', handleScoreUpdate)
+      // Clean up remote tally timeouts
+      Object.values(remoteTallyTimeouts.current).forEach(timeoutId => {
+        clearTimeout(timeoutId)
+      })
+      remoteTallyTimeouts.current = {}
+      
+      // Clean up WebSocket listeners
+      socket.off('score_update', handleScoreUpdate)
+      socket.off('player_activity', handlePlayerReorder)
       socket.off('player:reordered', handlePlayerReorder)
+      socket.off('dealer_changed', handleDealerChanged)
       socket.off('game:finalized', handleGameFinalized)
     }
-  }, [socket, isConnected, sqid, dispatch])
+  }, [socket, isConnected, sqid, dispatch, checkForWinner])
 
   // Load game on mount and sqid change
   useEffect(() => {
@@ -252,6 +390,17 @@ export function useGameManager(sqid) {
       loadGame()
     }
   }, [sqid, loadGame])
+
+  // Cleanup local player tally timeouts on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up all local player tally timeouts
+      Object.values(playerTallyTimeouts.current).forEach(timeoutId => {
+        clearTimeout(timeoutId)
+      })
+      playerTallyTimeouts.current = {}
+    }
+  }, [])
 
   // Set dealer function (moved from useDealerManager for convenience)
   const setDealer = useCallback(async (playerId) => {
