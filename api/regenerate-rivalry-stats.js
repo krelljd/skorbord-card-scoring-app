@@ -55,6 +55,15 @@ async function regenerateRivalryStats() {
  * Helper function to update rivalry statistics - copied from games.js
  */
 async function updateRivalryStats(sqidId, gameTypeId, gameId) {
+  // Get game type information to understand win/lose condition
+  const gameType = await db.get(`
+    SELECT is_win_condition FROM game_types WHERE id = ?
+  `, [gameTypeId]);
+  
+  if (!gameType) return;
+  
+  const isWinCondition = gameType.is_win_condition;
+
   // Get player IDs for this game
   const playerIds = await db.query(`
     SELECT player_id FROM stats WHERE game_id = ? ORDER BY player_id ASC
@@ -108,22 +117,38 @@ async function updateRivalryStats(sqidId, gameTypeId, gameId) {
       // Get winner's score for loss margin calculation
       const winnerScore = scores.find(s => s.player_id === game.winner_id)?.score ?? 0;
       
-      // For win: margin = playerScore - next highest score
-      // For loss: margin = winnerScore - playerScore (how much the winner beat this player by)
       const otherScores = scores.filter(s => s.player_id !== playerId).map(s => s.score);
       let margin = 0;
       
       if (game.winner_id === playerId) {
         wins++;
-        const nextBest = otherScores.length > 0 ? Math.max(...otherScores) : 0;
-        margin = playerScore - nextBest;
-        winMargins.push(margin);
+        
+        // For win margin, we always want the margin against the next closest score
+        // regardless of win/lose condition type
+        if (isWinCondition) {
+          // Win condition (higher score wins): next closest is the highest of the remaining scores
+          const nextClosest = otherScores.length > 0 ? Math.max(...otherScores) : 0;
+          margin = playerScore - nextClosest;
+        } else {
+          // Lose condition (lower score wins): next closest is the lowest of the remaining scores  
+          const nextClosest = otherScores.length > 0 ? Math.min(...otherScores) : 0;
+          margin = nextClosest - playerScore;
+        }
+        
+        winMargins.push(Math.abs(margin)); // Store as positive value
         last10Results += 'W';
       } else {
         losses++;
-        // Fixed: loss margin should be how much the winner beat this player by
-        margin = winnerScore - playerScore;
-        lossMargins.push(margin);
+        
+        if (isWinCondition) {
+          // Win condition: loss margin = winner_score - loser_score
+          margin = winnerScore - playerScore;
+        } else {
+          // Lose condition: loss margin = loser_score - winner_score
+          margin = playerScore - winnerScore;
+        }
+        
+        lossMargins.push(Math.abs(margin)); // Store as positive value
         last10Results += 'L';
       }
     }

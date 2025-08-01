@@ -160,20 +160,34 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
                               let desc = '';
                               
                               if (field.key === 'win_rate') {
-                                value = stats.total_games > 0 && stats.wins !== undefined ? `${Math.round((stats.wins / stats.total_games) * 100)}%` : '0%';
-                                desc = `${stats.wins || 0}/${stats.total_games || 0} games`;
+                                const totalGames = Math.max(0, Number(stats.total_games) || 0);
+                                const wins = Math.max(0, Number(stats.wins) || 0);
+                                const winRate = totalGames > 0 ? Math.max(0, Math.min(100, Math.round((wins / totalGames) * 100))) : 0;
+                                value = `${winRate}%`;
+                                desc = `${wins}/${totalGames} games`;
                               } else if (field.key === 'last_10_results') {
                                 value = value ? value.split('').join(' ') : 'N/A';
                               } else if (field.key === 'max_win_margin') {
-                                value = value !== undefined && value !== null ? value : 'N/A';
+                                // Win margins are now correctly calculated in backend for both win/lose conditions
+                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
                               } else if (field.key === 'min_win_margin') {
-                                value = value !== undefined && value !== null ? value : 'N/A';
+                                // Win margins are now correctly calculated in backend for both win/lose conditions
+                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
                               } else if (field.key === 'max_loss_margin') {
-                                value = value !== undefined && value !== null ? value : 'N/A';
+                                // Loss margins are now correctly calculated in backend for both win/lose conditions
+                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
                               } else if (field.key === 'min_loss_margin') {
-                                value = value !== undefined && value !== null ? value : 'N/A';
+                                // Loss margins are now correctly calculated in backend for both win/lose conditions
+                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
                               } else {
-                                value = value !== undefined && value !== null ? value : 'N/A';
+                                // Ensure any other numeric values are non-negative
+                                if (typeof value === 'number') {
+                                  value = Math.max(0, value);
+                                } else if (value !== undefined && value !== null && !isNaN(Number(value))) {
+                                  value = Math.max(0, Number(value));
+                                } else {
+                                  value = value !== undefined && value !== null ? value : 'N/A';
+                                }
                               }
                               
                               return (
@@ -211,8 +225,10 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
                     // Display all scores in "# - # - #" format, highest first
                     let matchScore = 'N/A';
                     if (game.player_scores && game.player_scores.length >= 2) {
-                      // Sort scores by highest first
-                      const sortedScores = [...game.player_scores].sort((a, b) => b.score - a.score);
+                      // Sort scores by highest first, ensuring all scores are non-negative
+                      const sortedScores = [...game.player_scores]
+                        .map(ps => ({ ...ps, score: Math.max(0, Number(ps.score) || 0) }))
+                        .sort((a, b) => b.score - a.score);
                       const scoreList = sortedScores.map(ps => ps.score).join(' - ');
                       matchScore = scoreList;
                     }

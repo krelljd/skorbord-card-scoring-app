@@ -112,7 +112,8 @@ router.get('/:rivalryId', async (req, res, next) => {
     const gameTypeStats = await db.query(`
       SELECT 
         gt.id as game_type_id,
-        gt.name as game_type_name
+        gt.name as game_type_name,
+        gt.is_win_condition
       FROM game_types gt
       WHERE gt.id IN (SELECT game_type_id FROM rivalry_game_types WHERE rivalry_id = ?)
       ORDER BY gt.name ASC
