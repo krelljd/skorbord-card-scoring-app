@@ -26,7 +26,7 @@ export function useAppData(sqid) {
       const API_URL = ''
       
       const [gameTypesRes, playersRes, rivalriesRes] = await Promise.all([
-        fetch(`${API_URL}/api/game_types`),
+        fetch(`${API_URL}/api/game_types?sqid=${sqid}`),
         fetch(`${API_URL}/api/${sqid}/players`),
         fetch(`${API_URL}/api/${sqid}/rivalries`)
       ])

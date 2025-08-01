@@ -200,7 +200,7 @@ const PlayerCard = ({
           <div className="flex gap-2 justify-center">
             {/* Subtract Points */}
             <button
-              className={`btn btn-sm ${playerColorClass} btn-outline flex-1`}
+              className={`btn btn-lg ${playerColorClass} btn-outline flex-1`}
               onTouchStart={() => handleTouchStart(-1)}
               onTouchEnd={() => handleTouchEnd(-1)}
               onMouseDown={() => handleTouchStart(-1)}
@@ -214,7 +214,7 @@ const PlayerCard = ({
 
             {/* Add Points */}
             <button
-              className={`btn btn-sm ${playerColorClass} flex-1`}
+              className={`btn btn-lg ${playerColorClass} flex-1`}
               onTouchStart={() => handleTouchStart(1)}
               onTouchEnd={() => handleTouchEnd(1)}
               onMouseDown={() => handleTouchStart(1)}
@@ -224,20 +224,6 @@ const PlayerCard = ({
             >
               <span className="text-lg">+</span>
             </button>
-          </div>
-        )}
-
-        {/* Long Press Hint */}
-        {!disabled && (
-          <div className="text-xs text-center text-base-content/40 mt-2">
-            Hold for +10/-10
-          </div>
-        )}
-
-        {/* Game Stats (if available) */}
-        {safePlayer.gamesWon !== undefined && (
-          <div className="text-xs text-center text-base-content/60 mt-2">
-            Games Won: {safePlayer.gamesWon || 0}
           </div>
         )}
       </div>

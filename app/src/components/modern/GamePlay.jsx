@@ -155,7 +155,7 @@ const GamePlay = ({
                 {game.game_type_name || 'Card Game'}
               </h1>
               <p className="text-base-content/70">
-                Play to <span className='font-bold text-primary'>{game.win_condition_value || 'unknown'}</span>
+                Reach <span className='font-bold text-primary'>{game.win_condition_value || 'unknown'}</span> to <span className='font-bold text-secondary'>{game.win_condition_type || 'unknown'}</span>
               </p>
             </div>
             

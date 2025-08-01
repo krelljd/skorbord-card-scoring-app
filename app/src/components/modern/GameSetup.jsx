@@ -61,27 +61,59 @@ const GameSetup = ({
     }
   }
 
-  // Form validation rules
+  // Handle random game type selection (from all game types)
+  const selectRandomGameType = () => {
+    if (gameTypes.length > 0) {
+      const randomType = gameTypes[Math.floor(Math.random() * gameTypes.length)]
+      setValue('gameType', randomType.id)
+      setError('gameType', '')
+      setValue('useCustomWinCondition', false)
+      showSuccess(`Selected ${randomType.name} randomly!`)
+    }
+  }
+
+  // Real-time form validation check
+  const isFormValid = () => {
+    // Check if game type is selected
+    if (!values.gameType) {
+      return false
+    }
+
+    // Check if at least 2 players have names
+    const nonEmptyPlayers = values.players.filter(name => name.trim())
+    if (nonEmptyPlayers.length < 2) {
+      return false
+    }
+
+    // Check custom win condition if enabled
+    if (values.useCustomWinCondition && (!values.customWinConditionValue || values.customWinConditionValue <= 0)) {
+      return false
+    }
+
+    return true
+  }
+
+  // Form validation rules for submission (sets errors)
   const validateForm = () => {
-    let isFormValid = true
+    let isSubmissionValid = true
     
     if (!values.gameType) {
       setError('gameType', 'Please select a game type')
-      isFormValid = false
+      isSubmissionValid = false
     }
 
     const nonEmptyPlayers = values.players.filter(name => name.trim())
     if (nonEmptyPlayers.length < 2) {
       setError('players', 'At least 2 players are required')
-      isFormValid = false
+      isSubmissionValid = false
     }
 
     if (values.useCustomWinCondition && (!values.customWinConditionValue || values.customWinConditionValue <= 0)) {
       setError('customWinConditionValue', 'Win condition value must be greater than 0')
-      isFormValid = false
+      isSubmissionValid = false
     }
 
-    return isFormValid
+    return isSubmissionValid
   }
 
   // Handle adding player
@@ -190,29 +222,59 @@ const GameSetup = ({
       </div>
 
       {/* Quick Actions */}
-      {favoritedGameTypes.length > 0 && (
+      {(favoritedGameTypes.length > 0 || gameTypes.length > 0) && (
         <div className="card bg-base-200 shadow-sm">
           <div className="card-body">
             <h2 className="card-title text-lg">Quick Start</h2>
-            <p className="text-sm text-base-content/70 mb-3">Your favorite game types</p>
-            <div className="flex flex-wrap gap-2">
-              {favoritedGameTypes.map((gameType) => (
+            {favoritedGameTypes.length > 0 ? (
+              <>
+                <p className="text-sm text-base-content/70 mb-3">Your favorite game types</p>
+                <div className="flex flex-wrap gap-2">
+                  {favoritedGameTypes.map((gameType) => (
+                    <button
+                      key={gameType.id}
+                      className={`btn btn-sm ${values.gameType === gameType.id ? 'btn-primary' : 'btn-outline'}`}
+                      onClick={() => handleQuickGameSelect(gameType.id)}
+                    >
+                      {gameType.name}
+                    </button>
+                  ))}
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={selectRandomFavorite}
+                    title="Select random favorite game type"
+                  >
+                    Random Favorite
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-base-content/70 mb-3">Get started quickly</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={selectRandomGameType}
+                    title="Select random game type"
+                  >
+                    Random Favorite
+                  </button>
+                </div>
+              </>
+            )}
+            
+            {/* Always show option to select random from all games if there are favorites */}
+            {favoritedGameTypes.length > 0 && gameTypes.length > favoritedGameTypes.length && (
+              <div className="mt-2 pt-2 border-t border-base-300">
                 <button
-                  key={gameType.id}
-                  className={`btn btn-sm ${values.gameType === gameType.id ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => handleQuickGameSelect(gameType.id)}
+                  className="btn btn-accent btn-sm"
+                  onClick={selectRandomGameType}
+                  title="Select random from all game types"
                 >
-                  {gameType.name}
+                  Random Game
                 </button>
-              ))}
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={selectRandomFavorite}
-                title="Select random favorite game type"
-              >
-                🎲 Random Favorite
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -403,7 +465,7 @@ const GameSetup = ({
             <button
               type="submit"
               className={`btn btn-primary btn-block ${isLoading ? 'loading' : ''}`}
-              disabled={isLoading || !isValid}
+              disabled={isLoading || !isFormValid()}
             >
               {isLoading ? 'Creating Game...' : 'Start Game'}
             </button>
