@@ -13,9 +13,10 @@ function CardAppWithConnection() {
   const [searchParams] = useSearchParams()
   
   // Allow testing modern version with ?modern=true query parameter
-  const useModernApp = searchParams.get('modern') === 'true'
-  const AppComponent = useModernApp ? ModernCardApp : CardApp
-  
+  //const useModernApp = searchParams.get('modern') === 'true'
+  const useLegacyApp = searchParams.get('legacy') === 'true'
+  const AppComponent = useLegacyApp ? CardApp : ModernCardApp
+
   return (
     <ErrorBoundary>
       <ConnectionProvider sqid={sqid}>
