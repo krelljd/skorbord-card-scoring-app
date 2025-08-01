@@ -13,6 +13,50 @@ export function useGameManager(sqid) {
   const { updateScore, setLoading, setError, clearAllTallies } = useGameActions()
   const { socket, isConnected } = useConnection()
 
+  // Create a stable function reference for checking winners to avoid infinite loops
+  const checkForWinnerRef = useRef()
+  
+  // Update the function reference whenever the game state changes
+  checkForWinnerRef.current = (stats) => {
+    if (!gameState.game || gameState.game.finalized) return
+
+    const winCondition = gameState.game.win_condition_value
+    const winConditionType = gameState.game.win_condition_type
+    let gameWinner = null
+
+    if (winConditionType === 'win') {
+      // Win condition: first player to reach the target score
+      const qualifiedPlayers = stats.filter(stat => stat.score >= winCondition)
+      if (qualifiedPlayers.length > 0) {
+        gameWinner = qualifiedPlayers.reduce((max, current) =>
+          current.score > max.score ? current : max
+        )
+      }
+    } else if (winConditionType === 'lose') {
+      // Lose condition: when someone hits the target, lowest score wins
+      const anyLoser = stats.some(stat => stat.score >= winCondition)
+      if (anyLoser) {
+        gameWinner = stats.reduce((min, current) =>
+          current.score < min.score ? current : min
+        )
+      }
+    }
+
+    // Update winner state if detected
+    if (gameWinner && gameWinner.player_id !== gameState.winner?.player_id) {
+      dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
+    } else if (!gameWinner && gameState.winner) {
+      dispatch({ type: 'WINNER_CLEARED' })
+    }
+  }
+
+  // Stable wrapper function for checkForWinner
+  const checkForWinner = useCallback((stats) => {
+    if (checkForWinnerRef.current) {
+      checkForWinnerRef.current(stats)
+    }
+  }, []) // Empty dependency array for stable reference
+
   // Load game data
   const loadGame = useCallback(async () => {
     if (!sqid) return
@@ -47,6 +91,11 @@ export function useGameManager(sqid) {
         }
       })
       
+      // Check for winner after loading game data and stats
+      if (gameData && statsData && statsData.length > 0) {
+        checkForWinner(statsData)
+      }
+      
       if (typeof clearAllTallies === 'function') {
         clearAllTallies()
       }
@@ -56,41 +105,7 @@ export function useGameManager(sqid) {
     } finally {
       setLoading(false)
     }
-  }, [sqid, dispatch, setLoading, setError])
-
-  // Check for winner based on game conditions
-  const checkForWinner = useCallback((stats) => {
-    if (!gameState.game || gameState.game.finalized) return
-
-    const winCondition = gameState.game.win_condition_value
-    const winConditionType = gameState.game.win_condition_type
-    let gameWinner = null
-
-    if (winConditionType === 'win') {
-      // Win condition: first player to reach the target score
-      const qualifiedPlayers = stats.filter(stat => stat.score >= winCondition)
-      if (qualifiedPlayers.length > 0) {
-        gameWinner = qualifiedPlayers.reduce((max, current) =>
-          current.score > max.score ? current : max
-        )
-      }
-    } else if (winConditionType === 'lose') {
-      // Lose condition: when someone hits the target, lowest score wins
-      const anyLoser = stats.some(stat => stat.score >= winCondition)
-      if (anyLoser) {
-        gameWinner = stats.reduce((min, current) =>
-          current.score < min.score ? current : min
-        )
-      }
-    }
-
-    // Update winner state if detected
-    if (gameWinner && gameWinner.player_id !== gameState.winner?.player_id) {
-      dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
-    } else if (!gameWinner && gameState.winner) {
-      dispatch({ type: 'WINNER_CLEARED' })
-    }
-  }, [gameState.game, gameState.winner, dispatch])
+  }, [sqid, dispatch, setLoading, setError, checkForWinner]) // checkForWinner now has stable ref
 
   // Update player score (optimistic update + server sync)
   // Single timer per player for rolling 3-second window
@@ -395,14 +410,14 @@ export function useGameManager(sqid) {
       socket.off('dealer_changed', handleDealerChanged)
       socket.off('game:finalized', handleGameFinalized)
     }
-  }, [socket, isConnected, sqid, dispatch, checkForWinner])
+  }, [socket, isConnected, sqid, dispatch, checkForWinner]) // checkForWinner now has stable ref
 
-  // Load game on mount and sqid change
+  // Load game on mount and sqid change only
   useEffect(() => {
     if (sqid) {
       loadGame()
     }
-  }, [sqid, loadGame])
+  }, [sqid, loadGame]) // Can include loadGame now since checkForWinner is stable
 
   // Cleanup local player tally timeouts on unmount
   useEffect(() => {
