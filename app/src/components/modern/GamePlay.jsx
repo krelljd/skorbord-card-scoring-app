@@ -124,17 +124,17 @@ const GamePlay = ({
   if (!gameManager.game) {
     return (
       <div className="flex flex-col items-center justify-center min-h-96 space-y-4">
-        <div className="text-6xl">🎮</div>
+        <div className="text-6xl">🃏</div>
         <h2 className="text-2xl font-bold text-base-content">No Active Game</h2>
         <p className="text-base-content/70 text-center max-w-md">
-          Start a new game from the setup page to begin tracking scores.
+          Start a new game from the menu to begin tracking scores.
         </p>
         {onBackToSetup && (
           <button 
             className="btn btn-primary"
             onClick={onBackToSetup}
           >
-            Back to Setup
+            New Game
           </button>
         )}
       </div>

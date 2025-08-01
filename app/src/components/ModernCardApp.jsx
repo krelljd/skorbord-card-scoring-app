@@ -46,7 +46,7 @@ const ModernCardApp = () => {
   } = useAppData(sqid)
   
   // Check if we should use modern components (default to true for Phase 5)
-  const useModern = searchParams.get('modern') !== 'false' // Default to modern
+  const useModern = true // Default to modern
   
   // App state - simplified with modern state management
   const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
