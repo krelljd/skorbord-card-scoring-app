@@ -23,17 +23,30 @@ export function useGameManager(sqid) {
 
       // Fetch game and stats in parallel
       const [gameData, statsData] = await Promise.all([
-        gameAPI.getGame(sqid),
-        gameAPI.getGameStats(sqid)
+        gameAPI.getGame(sqid).catch(error => {
+          // Handle 404 gracefully - no active game found
+          if (error.status === 404) {
+            return null
+          }
+          throw error
+        }),
+        gameAPI.getGameStats(sqid).catch(error => {
+          // Handle 404 gracefully - no game stats found
+          if (error.status === 404) {
+            return []
+          }
+          throw error
+        })
       ])
 
       dispatch({
         type: 'GAME_LOADED',
         payload: {
           game: gameData,
-          stats: statsData
+          stats: statsData || []
         }
       })
+      
       if (typeof clearAllTallies === 'function') {
         clearAllTallies()
       }

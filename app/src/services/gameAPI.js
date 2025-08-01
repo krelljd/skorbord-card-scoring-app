@@ -143,7 +143,7 @@ class GameAPI {
     return response?.data
   }
 
-  // Finalize game - fixed duplicate method definition
+  // Finalize game - use correct endpoint and method
   async finalizeGame(sqid, gameId = null) {
     if (!gameId) {
       // If no gameId provided, find current game for sqid
@@ -154,9 +154,10 @@ class GameAPI {
     if (!gameId) {
       throw new Error('No active game found to finalize')
     }
-    
-    const response = await this.request(`/api/${sqid}/games/${gameId}/finalize`, {
-      method: 'POST'
+    // PUT to /api/:sqid/games/:gameId with { finalized: true, ended_at: now }
+    const response = await this.request(`/api/${sqid}/games/${gameId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ finalized: true, ended_at: new Date().toISOString() })
     })
     return response?.data
   }

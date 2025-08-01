@@ -16,13 +16,14 @@ const GameSetup = ({
   sqid,
   gameTypes = [],
   players = [],
-  onGameCreated
+  rivalries = [],
+  onGameStart
 }) => {
-  const { showError, showSuccess } = useToast()
-  const { isLoading, withLoading } = useLoading()
+  const { error: showError, success: showSuccess } = useToast()
+  const { loading: isLoading, withLoading } = useLoading()
   
   // Form state using modern hook
-  const { values, errors, setValue, setError, validateField, isValid } = useForm({
+  const { values, errors, setValue, setErrors, isValid } = useForm({
     gameType: '',
     players: ['', ''],
     useCustomWinCondition: false,
@@ -30,11 +31,35 @@ const GameSetup = ({
     customWinConditionValue: 100
   })
 
+  // Helper function to set individual field errors
+  const setError = (field, error) => {
+    setErrors(prev => ({ ...prev, [field]: error }))
+  }
+
   // Additional UI state
   const [selectedRivalry, setSelectedRivalry] = useState('')
 
   // Get favorited game types for quick access
   const favoritedGameTypes = gameTypes.filter(gt => gt.is_favorited) || []
+
+  // Helper to get player names from rivalry
+  const getRivalryPlayerNames = (rivalry) => {
+    if (rivalry.players && Array.isArray(rivalry.players)) {
+      return rivalry.players.map(p => p.name)
+    }
+    return rivalry.player_names || []
+  }
+
+  // Handle random favorite game type selection
+  const selectRandomFavorite = () => {
+    if (favoritedGameTypes.length > 0) {
+      const randomType = favoritedGameTypes[Math.floor(Math.random() * favoritedGameTypes.length)]
+      setValue('gameType', randomType.id)
+      setError('gameType', '')
+      setValue('useCustomWinCondition', false)
+      showSuccess(`Selected ${randomType.name} randomly!`)
+    }
+  }
 
   // Form validation rules
   const validateForm = () => {
@@ -88,10 +113,19 @@ const GameSetup = ({
   }
 
   // Handle rivalry selection
-  const handleRivalrySelect = (rivalryPlayers) => {
-    setValue('players', rivalryPlayers)
-    setSelectedRivalry('')
-    showSuccess(`Selected ${rivalryPlayers.join(', ')} as players`)
+  const handleRivalrySelect = (rivalryId) => {
+    setSelectedRivalry(rivalryId)
+    if (rivalryId) {
+      const rivalry = rivalries.find(r => r.id === rivalryId)
+      if (rivalry) {
+        const names = getRivalryPlayerNames(rivalry)
+        setValue('players', names.length >= 2 ? names : ['', ''])
+        setError('players', '')
+        showSuccess(`Selected rivalry: ${names.join(' vs ')}`)
+      }
+    } else {
+      setValue('players', ['', ''])
+    }
   }
 
   // Handle quick game type selection
@@ -116,23 +150,20 @@ const GameSetup = ({
 
         const gameData = {
           game_type_id: values.gameType,
-          players: nonEmptyPlayers.map((name, index) => ({
-            name: name.trim(),
-            order: index + 1
-          }))
-        }
-
-        // Add custom win condition if specified
-        if (values.useCustomWinCondition) {
-          gameData.win_condition_type = values.customWinConditionType
-          gameData.win_condition_value = parseInt(values.customWinConditionValue)
+          player_names: nonEmptyPlayers.map(name => name.trim()),
+          win_condition_type: values.useCustomWinCondition ? 
+            values.customWinConditionType : 
+            (selectedGameTypeData?.is_win_condition ? 'win' : 'lose'),
+          win_condition_value: values.useCustomWinCondition ? 
+            parseInt(values.customWinConditionValue) : 
+            (selectedGameTypeData?.is_win_condition ? selectedGameTypeData.win_condition : selectedGameTypeData.loss_condition)
         }
 
         const newGame = await gameAPI.createGame(sqid, gameData)
         showSuccess(`Game "${selectedGameTypeData?.name}" created successfully!`)
         
-        if (onGameCreated) {
-          onGameCreated(newGame)
+        if (onGameStart) {
+          onGameStart(newGame)
         }
       })
     } catch (error) {
@@ -174,6 +205,13 @@ const GameSetup = ({
                   {gameType.name}
                 </button>
               ))}
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={selectRandomFavorite}
+                title="Select random favorite game type"
+              >
+                🎲 Random Favorite
+              </button>
             </div>
           </div>
         </div>
@@ -277,6 +315,51 @@ const GameSetup = ({
                 Add Player
               </button>
             </div>
+
+            {/* Rivalry Selection */}
+            {rivalries && rivalries.length > 0 && (
+              <div className="form-control mb-4">
+                <label className="label">
+                  <span className="label-text">Select existing rivalry</span>
+                </label>
+                <select 
+                  className="select select-bordered"
+                  value={selectedRivalry}
+                  onChange={(e) => handleRivalrySelect(e.target.value)}
+                >
+                  <option value="">Use players below...</option>
+                  {rivalries.map(rivalry => {
+                    const names = getRivalryPlayerNames(rivalry)
+                    return (
+                      <option key={rivalry.id} value={rivalry.id}>
+                        {names.join(' vs ')}
+                      </option>
+                    )
+                  })}
+                </select>
+                
+                {/* Show rivalry stats if selected */}
+                {selectedRivalry && (() => {
+                  const rivalry = rivalries.find(r => r.id === selectedRivalry)
+                  if (rivalry && Array.isArray(rivalry.game_type_stats) && rivalry.game_type_stats.length > 0) {
+                    return (
+                      <div className="mt-4 p-3 bg-base-200 rounded-lg">
+                        <h4 className="font-semibold mb-2">Stats by Game Type</h4>
+                        <div className="space-y-1 text-sm">
+                          {rivalry.game_type_stats.map(stat => (
+                            <div key={stat.game_type_id} className="flex justify-between">
+                              <span className="font-medium">{stat.game_type_name}:</span>
+                              <span>{stat.games_played} games, {stat.wins}W-{stat.losses}L, Avg: {stat.average_margin ? stat.average_margin.toFixed(1) : 'N/A'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+              </div>
+            )}
 
             <div className="space-y-3">
               {values.players.map((playerName, index) => (

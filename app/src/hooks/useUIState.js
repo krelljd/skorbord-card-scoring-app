@@ -182,6 +182,7 @@ export function useForm(initialValues = {}, validationRules = {}) {
     errors,
     touched,
     setValue,
+    setErrors,
     setTouched,
     validate,
     reset,
