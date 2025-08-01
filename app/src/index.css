@@ -77,11 +77,19 @@
     /* Prevent zoom on input focus */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    /* Disable double-tap zoom */
+    touch-action: manipulation;
     /* Handle safe areas for notched devices */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     /* Reduce margin to maximize content area */
     margin: 0;
+    
+    /* Additional iOS Safari fixes */
+    /* Prevent rubber band scrolling on body */
+    overscroll-behavior: none;
+    /* Improve touch responsiveness */
+    cursor: default;
   }
 
   /* Allow text selection for inputs and content areas */
@@ -102,16 +110,36 @@
     /* Ensure buttons meet minimum touch target size */
   }
   
-  /* Score adjustment buttons */
+  /* Score adjustment buttons - Enhanced for iOS Safari */
   .score-btn {
     min-height: 44px;
     min-width: 44px;
-    touch-action: none;
+    touch-action: manipulation;
     font-size: 1.25rem;
     font-weight: 700;
     border-radius: 0.75rem;
     /* Large, easy to press score adjustment buttons */
     /* DaisyUI classes: btn btn-primary are applied in JSX */
+    
+    /* iOS Safari specific optimizations */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    
+    /* Improve touch responsiveness */
+    transform: translateZ(0); /* Hardware acceleration */
+    will-change: transform; /* Hint for browser optimization */
+    
+    /* Ensure proper hit target */
+    position: relative;
+    z-index: 1;
+  }
+  
+  .score-btn:active {
+    transform: translateZ(0) scale(0.95);
+    transition: transform 0.1s ease-in-out;
   }
   
   /* Player card styling */

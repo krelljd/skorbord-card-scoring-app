@@ -1,5 +1,6 @@
-import { useState, useCallback, memo } from 'react'
+import { useState, useCallback, memo, useRef } from 'react'
 import { useGameState } from '../../contexts/GameStateContext.jsx'
+import { usePointerInteraction } from '../../hooks/usePointerInteraction.js'
 
 // DaisyUI semantic color mapping for players
 const getPlayerColor = (index) => {
@@ -51,9 +52,8 @@ const PlayerCard = ({
   onDealerClick,
   disabled = false 
 }) => {
-  const [isLongPress, setIsLongPress] = useState(false)
-  const [longPressTimer, setLongPressTimer] = useState(null)
   const gameState = useGameState()
+  const lastUpdateRef = useRef(0)
 
   // Guard clause - return null if player is not provided
   if (!player) {
@@ -73,48 +73,55 @@ const PlayerCard = ({
     ...player
   }
 
+  // Handle score updates with debouncing for rapid taps
   const handleScoreChange = useCallback((delta) => {
     if (disabled) return
     
-    const newScore = Math.max(0, safePlayer.score + delta)
+    // Debounce rapid taps (prevent double-taps within 100ms)
+    const now = Date.now()
+    if (now - lastUpdateRef.current < 100) {
+      console.debug('PlayerCard: Debounced rapid tap')
+      return
+    }
+    lastUpdateRef.current = now
     
     // Only call onScoreUpdate if it's provided
     if (typeof onScoreUpdate === 'function') {
-      onScoreUpdate(safePlayer.id, newScore)
+      onScoreUpdate(safePlayer.id, delta)
     }
-  }, [safePlayer, onScoreUpdate, disabled])
+  }, [safePlayer.id, onScoreUpdate, disabled])
 
-  const handleTouchStart = useCallback((delta) => {
+  // Handle long press for bigger score changes
+  const handleLongPress = useCallback((delta) => {
     if (disabled) return
     
-    const timer = setTimeout(() => {
-      setIsLongPress(true)
-      // Vibrate if available (mobile)
-      if (navigator.vibrate) {
-        navigator.vibrate(50)
-      }
-    }, 500) // 500ms for long press
+    // Long press - bigger change (10x)
+    const longPressChange = delta * 10
     
-    setLongPressTimer(timer)
-  }, [disabled])
+    // Vibrate if available (mobile)
+    if (navigator.vibrate) {
+      navigator.vibrate([50, 100, 50]) // Triple vibration for long press
+    }
+    
+    if (typeof onScoreUpdate === 'function') {
+      onScoreUpdate(safePlayer.id, longPressChange)
+    }
+  }, [safePlayer.id, onScoreUpdate, disabled])
 
-  const handleTouchEnd = useCallback((delta) => {
-    if (disabled) return
-    
-    if (longPressTimer) {
-      clearTimeout(longPressTimer)
-      setLongPressTimer(null)
-    }
-    
-    if (isLongPress) {
-      // Long press - bigger change
-      handleScoreChange(delta * 10)
-      setIsLongPress(false)
-    } else {
-      // Regular tap
-      handleScoreChange(delta)
-    }
-  }, [longPressTimer, isLongPress, handleScoreChange, disabled])
+  // Use the improved pointer interaction hook
+  const minusPointer = usePointerInteraction({
+    onSingleTap: (change) => handleScoreChange(change),
+    onLongPress: (change) => handleLongPress(change),
+    disabled,
+    longPressDelay: 500
+  })
+
+  const plusPointer = usePointerInteraction({
+    onSingleTap: (change) => handleScoreChange(change),
+    onLongPress: (change) => handleLongPress(change), 
+    disabled,
+    longPressDelay: 500
+  })
 
   const handleKeyDown = useCallback((e, delta) => {
     if (disabled) return
@@ -200,27 +207,36 @@ const PlayerCard = ({
           <div className="flex gap-2 justify-center">
             {/* Subtract Points */}
             <button
-              className={`btn btn-lg ${playerColorClass} btn-outline flex-1`}
-              onTouchStart={() => handleTouchStart(-1)}
-              onTouchEnd={() => handleTouchEnd(-1)}
-              onMouseDown={() => handleTouchStart(-1)}
-              onMouseUp={() => handleTouchEnd(-1)}
+              className={`btn btn-lg ${playerColorClass} btn-outline flex-1 ${
+                minusPointer.glowingButton === 'minus' ? 'btn-active' : ''
+              }`}
+              onPointerDown={(e) => minusPointer.handlePointerDown(e, -1)}
+              onPointerMove={minusPointer.handlePointerMove}
+              onPointerUp={(e) => minusPointer.handlePointerUp(e, -1)}
+              onPointerCancel={minusPointer.handlePointerCancel}
+              onPointerLeave={minusPointer.handlePointerLeave}
               onKeyDown={(e) => handleKeyDown(e, -1)}
-              disabled={safePlayer.score === 0}
+              disabled={safePlayer.score === 0 || disabled}
               aria-label={`Subtract point from ${safePlayer.name}`}
+              style={{ touchAction: 'manipulation' }}
             >
               <span className="text-lg">-</span>
             </button>
 
             {/* Add Points */}
             <button
-              className={`btn btn-lg ${playerColorClass} flex-1`}
-              onTouchStart={() => handleTouchStart(1)}
-              onTouchEnd={() => handleTouchEnd(1)}
-              onMouseDown={() => handleTouchStart(1)}
-              onMouseUp={() => handleTouchEnd(1)}
+              className={`btn btn-lg ${playerColorClass} flex-1 ${
+                plusPointer.glowingButton === 'plus' ? 'btn-active' : ''
+              }`}
+              onPointerDown={(e) => plusPointer.handlePointerDown(e, 1)}
+              onPointerMove={plusPointer.handlePointerMove}
+              onPointerUp={(e) => plusPointer.handlePointerUp(e, 1)}
+              onPointerCancel={plusPointer.handlePointerCancel}
+              onPointerLeave={plusPointer.handlePointerLeave}
               onKeyDown={(e) => handleKeyDown(e, 1)}
+              disabled={disabled}
               aria-label={`Add point to ${safePlayer.name}`}
+              style={{ touchAction: 'manipulation' }}
             >
               <span className="text-lg">+</span>
             </button>

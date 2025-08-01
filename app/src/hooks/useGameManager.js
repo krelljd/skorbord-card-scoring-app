@@ -205,18 +205,22 @@ export function useGameManager(sqid) {
     try {
       setLoading(true)
       
-      const result = await gameAPI.finalizeGame(sqid)
+      // Get current winner before finalizing
+      const currentWinner = gameState.winner
+      const winnerId = currentWinner?.player_id || null
+      
+      const result = await gameAPI.finalizeGame(sqid, gameState.game?.id, winnerId)
       
       dispatch({
         type: 'GAME_FINALIZED',
         payload: {
-          winner: result.winner
+          winner: result.winner || currentWinner
         }
       })
 
       // Emit to WebSocket
       if (socket?.connected) {
-        socket.emit('game:finalized', { sqid, winner: result.winner })
+        socket.emit('game:finalized', { sqid, winner: result.winner || currentWinner })
       }
     } catch (error) {
       console.error('Failed to finalize game:', error)
@@ -224,7 +228,7 @@ export function useGameManager(sqid) {
     } finally {
       setLoading(false)
     }
-  }, [sqid, socket, dispatch, setLoading, setError])
+  }, [sqid, socket, dispatch, setLoading, setError, gameState.winner, gameState.game?.id])
 
   // Update player order
   const updatePlayerOrder = useCallback(async (newOrder) => {

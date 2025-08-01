@@ -92,13 +92,6 @@ class GameAPI {
     return response.data
   }
 
-  async finalizeGame(sqid, gameId) {
-    const response = await this.request(`/api/${sqid}/games/${gameId}/finalize`, {
-      method: 'PUT'
-    })
-    return response.data
-  }
-
   // Game stats management
   async getGameStats(sqid, gameId) {
     // If no gameId provided, try to get active game first
@@ -144,7 +137,7 @@ class GameAPI {
   }
 
   // Finalize game - use correct endpoint and method
-  async finalizeGame(sqid, gameId = null) {
+  async finalizeGame(sqid, gameId = null, winnerId = null) {
     if (!gameId) {
       // If no gameId provided, find current game for sqid
       const gameData = await this.getActiveGame(sqid)
@@ -154,10 +147,22 @@ class GameAPI {
     if (!gameId) {
       throw new Error('No active game found to finalize')
     }
-    // PUT to /api/:sqid/games/:gameId with { finalized: true, ended_at: now }
+    
+    // Prepare finalization data
+    const finalizeData = { 
+      finalized: true, 
+      ended_at: new Date().toISOString() 
+    }
+    
+    // Include winner_id if provided
+    if (winnerId) {
+      finalizeData.winner_id = winnerId
+    }
+    
+    // PUT to /api/:sqid/games/:gameId with finalization data
     const response = await this.request(`/api/${sqid}/games/${gameId}`, {
       method: 'PUT',
-      body: JSON.stringify({ finalized: true, ended_at: new Date().toISOString() })
+      body: JSON.stringify(finalizeData)
     })
     return response?.data
   }

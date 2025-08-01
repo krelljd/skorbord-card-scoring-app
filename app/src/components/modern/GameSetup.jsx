@@ -262,19 +262,6 @@ const GameSetup = ({
                 </div>
               </>
             )}
-            
-            {/* Always show option to select random from all games if there are favorites */}
-            {favoritedGameTypes.length > 0 && gameTypes.length > favoritedGameTypes.length && (
-              <div className="mt-2 pt-2 border-t border-base-300">
-                <button
-                  className="btn btn-accent btn-sm"
-                  onClick={selectRandomGameType}
-                  title="Select random from all game types"
-                >
-                  Random Game
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}

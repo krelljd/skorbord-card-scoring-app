@@ -199,9 +199,8 @@ const GamePlay = ({
                   gamesWon: playerStat.games_won
                 }}
                 playerIndex={index}
-                onScoreUpdate={(playerId, newScore) => {
-                  // Convert from newScore to change for handleScoreUpdate
-                  const change = newScore - currentScore;
+                onScoreUpdate={(playerId, change) => {
+                  // PlayerCard now passes change directly
                   return handleScoreUpdate(playerId, change);
                 }}
                 isDealer={game.dealer_id === playerStat.player_id}
