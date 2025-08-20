@@ -236,27 +236,26 @@ export function useGameManager(sqid) {
 
   // Update player order
   const updatePlayerOrder = useCallback(async (newOrder) => {
+    if (!gameState.game?.id) {
+      throw new Error('No active game found')
+    }
+
     try {
-      const updatedStats = await gameAPI.updatePlayerOrder(sqid, newOrder)
+      const response = await gameAPI.updatePlayerOrder(sqid, gameState.game.id, newOrder)
       
-      // Find which player was moved (for glow effect)
-      const movedPlayerId = newOrder.find((id, index) => {
-        const currentOrder = gameState.gameStats.map(s => s.player_id)
-        return currentOrder[index] !== id
-      })
-
-      dispatch({
-        type: 'PLAYER_ORDER_UPDATED',
-        payload: {
-          stats: updatedStats,
-          movedPlayerId
-        }
-      })
-
+      // Don't update state immediately - rely on WebSocket event for consistency
+      // This matches the pattern used in the original GamePlay component
+      
       // Emit to WebSocket
       if (socket?.connected) {
-        socket.emit('player:reordered', { sqid, newOrder })
+        socket.emit('player_order_update', { 
+          sqid, 
+          gameId: gameState.game.id,
+          newOrder 
+        })
       }
+
+      return response
 
       // Clear glow effect after animation
       if (movedPlayerId) {
@@ -334,34 +333,23 @@ export function useGameManager(sqid) {
       }
     }
 
-    // Listen for player reordering from other clients
+    // Listen for player reorder from other clients
     const handlePlayerReorder = (data) => {
-      if (data.sqid === sqid) {
-        // Refresh game data to get updated order
-        // Use a fresh call instead of the loadGame callback to avoid dependency loop
-        const refreshGameData = async () => {
-          try {
-            const [gameData, statsData] = await Promise.all([
-              gameAPI.getGame(sqid),
-              gameAPI.getGameStats(sqid)
-            ])
-
-            dispatch({
-              type: 'GAME_LOADED',
-              payload: {
-                game: gameData,
-                stats: statsData
-              }
-            })
-          } catch (error) {
-            console.error('Failed to refresh game data:', error)
+      // Accept the event if sqid matches (more robust than checking both sqid and game ID)
+      if (data.sqid_id === sqid) {
+        // Update player order with the new stats from the event
+        dispatch({
+          type: 'PLAYER_ORDER_UPDATED',
+          payload: {
+            stats: data.stats,
+            movedPlayerId: null // We don't need glow effect for remote updates
           }
-        }
-        refreshGameData()
+        })
+        
+        // Don't update game state during reordering - it should already be loaded
+        // The reorder WebSocket event should only update the stats, not the game
       }
-    }
-
-    // Listen for dealer change from other clients (legacy event)
+    }    // Listen for dealer change from other clients (legacy event)
     const handleDealerChanged = (data) => {
       if (data.sqid === sqid) {
         // Fetch latest game and stats from API to ensure fresh state
@@ -399,8 +387,7 @@ export function useGameManager(sqid) {
     }
 
     socket.on('score_update', handleScoreUpdate)
-    socket.on('player_activity', handlePlayerReorder) // If player_activity is used for reordering
-    socket.on('player:reordered', handlePlayerReorder)
+    socket.on('player_order_updated', handlePlayerReorder)
     socket.on('dealer_changed', handleDealerChanged)
     socket.on('game:finalized', handleGameFinalized)
 
@@ -413,8 +400,7 @@ export function useGameManager(sqid) {
       
       // Clean up WebSocket listeners
       socket.off('score_update', handleScoreUpdate)
-      socket.off('player_activity', handlePlayerReorder)
-      socket.off('player:reordered', handlePlayerReorder)
+      socket.off('player_order_updated', handlePlayerReorder)
       socket.off('dealer_changed', handleDealerChanged)
       socket.off('game:finalized', handleGameFinalized)
     }
@@ -512,6 +498,7 @@ export function useDealerManager(sqid) {
     ...gameState,
     loadGame,
     updatePlayerScore,
+    updatePlayerOrder,
     finalizeGame,
     setDealer,
     loading: gameState.loading,
@@ -520,6 +507,7 @@ export function useDealerManager(sqid) {
     gameState, 
     loadGame, 
     updatePlayerScore, 
+    updatePlayerOrder,
     finalizeGame, 
     setDealer
   ])

@@ -169,9 +169,14 @@ class GameAPI {
 
   // Update player order
   async updatePlayerOrder(sqid, gameId, newOrder) {
-    const response = await this.request(`/api/${sqid}/games/${gameId}/player-order`, {
+    // Convert from [{playerId, order}] format to [playerId1, playerId2, ...] format
+    const playerOrder = newOrder.map(item => item.playerId)
+    
+    const response = await this.request(`/api/${sqid}/games/${gameId}/stats/order`, {
       method: 'PUT',
-      body: JSON.stringify({ order: newOrder })
+      body: JSON.stringify({ 
+        playerOrder: playerOrder 
+      })
     })
     return response?.data
   }

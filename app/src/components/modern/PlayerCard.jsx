@@ -1,4 +1,4 @@
-import { useState, useCallback, memo, useRef } from 'react'
+import { useState, useCallback, memo, useRef, forwardRef } from 'react'
 import { useGameState } from '../../contexts/GameStateContext.jsx'
 import { usePointerInteraction } from '../../hooks/usePointerInteraction.js'
 
@@ -43,7 +43,7 @@ const getPlayerBgColor = (index) => {
  * @param {Function} onDealerClick - Callback for dealer badge clicks
  * @param {boolean} disabled - Whether interactions are disabled
  */
-const PlayerCard = ({ 
+const PlayerCard = forwardRef(({ 
   player, 
   playerIndex = 0, // Default to 0 if not provided
   isDealer, 
@@ -51,7 +51,7 @@ const PlayerCard = ({
   onScoreUpdate, 
   onDealerClick,
   disabled = false 
-}) => {
+}, ref) => {
   const gameState = useGameState()
   const lastUpdateRef = useRef(0)
 
@@ -141,6 +141,7 @@ const PlayerCard = ({
   }
   return (
     <div 
+      ref={ref}
       className={`card ${playerBgClass} border-2 ${
         isWinner ? 'border-success border-solid shadow-success/50 shadow-lg animate-pulse' :
         isDealer ? 'border-primary border-dashed' : 'border-base-300'
@@ -249,7 +250,9 @@ const PlayerCard = ({
       </div>
     </div>
   )
-}
+})
+
+PlayerCard.displayName = 'PlayerCard'
 
 // Memoize PlayerCard to prevent unnecessary re-renders
 // Only re-render when player data, state, or callbacks change

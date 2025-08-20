@@ -101,6 +101,75 @@ router.post('/', validateCreatePlayer, async (req, res, next) => {
 });
 
 /**
+ * PUT /api/:sqid/players/reorder - Update player order within a game
+ */
+router.put('/reorder', async (req, res, next) => {
+  try {
+    const { sqid } = req.params;
+    const { gameId, playerOrder } = req.body;
+    
+    if (!gameId || !Array.isArray(playerOrder)) {
+      throw new ValidationError('Game ID and player order array are required');
+    }
+    
+    // Validate all players exist in the game
+    const gameStats = await db.query(`
+      SELECT player_id, player_order 
+      FROM stats 
+      WHERE game_id = ?
+    `, [gameId]);
+    
+    const existingPlayerIds = new Set(gameStats.map(stat => stat.player_id));
+    const newPlayerIds = new Set(playerOrder.map(p => p.playerId));
+    
+    if (existingPlayerIds.size !== newPlayerIds.size || 
+        !Array.from(existingPlayerIds).every(id => newPlayerIds.has(id))) {
+      throw new ValidationError('Player order must include all players in the game');
+    }
+    
+    // Update player order in database within transaction
+    await db.transaction(async (db) => {
+      for (let i = 0; i < playerOrder.length; i++) {
+        const { playerId } = playerOrder[i];
+        await db.run(
+          'UPDATE stats SET player_order = ? WHERE game_id = ? AND player_id = ?',
+          [i + 1, gameId, playerId]
+        );
+      }
+    });
+    
+    // Get updated game stats
+    const updatedStats = await db.query(`
+      SELECT 
+        s.player_id,
+        s.score,
+        s.player_order,
+        p.name as player_name
+      FROM stats s
+      JOIN players p ON s.player_id = p.id
+      WHERE s.game_id = ?
+      ORDER BY s.player_order ASC
+    `, [gameId]);
+    
+    // Broadcast player order updated event
+    req.io?.to(`/sqid/${sqid}`).emit('player_order_updated', {
+      type: 'player_order_updated',
+      gameId: gameId,
+      stats: updatedStats,
+      sqidId: sqid,
+      timestamp: new Date().toISOString()
+    });
+    
+    res.json(createResponse(true, { 
+      message: 'Player order updated successfully',
+      stats: updatedStats 
+    }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/:sqid/players/:playerId - Get player details
  */
 router.get('/:playerId', validatePlayerAccess, async (req, res, next) => {

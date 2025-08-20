@@ -8,6 +8,7 @@ function gameStateReducer(state, action) {
         ...state,
         game: action.payload.game,
         gameStats: action.payload.stats || [],
+        dealer: action.payload.game?.dealer_id || null, // Set dealer from game
         loading: false,
         error: null
       }
@@ -86,6 +87,7 @@ function gameStateReducer(state, action) {
         ...state,
         gameStats: action.payload.stats,
         glowingCards: new Set([action.payload.movedPlayerId])
+        // Note: Preserve existing game and dealer state - don't overwrite them
       }
     }
     case 'GLOW_CLEARED': {
@@ -112,6 +114,15 @@ function gameStateReducer(state, action) {
     }
     case 'ERROR_SET': {
       return { ...state, error: action.payload }
+    }
+    case 'REORDER_MODE_SET': {
+      return { ...state, isReorderMode: action.payload }
+    }
+    case 'PLAYERS_REORDERED': {
+      return {
+        ...state,
+        gameStats: action.payload.stats
+      }
     }
     default: {
       throw new Error(`Unknown action: ${action.type}`)
@@ -182,5 +193,20 @@ export function useGameActions() {
     dispatch({ type: 'SCORE_TALLIES_CLEARED' })
   }, [dispatch])
   
-  return { updateScore, setLoading, setError, clearAllTallies }
+  const setReorderMode = useCallback((isReorderMode) => {
+    dispatch({ type: 'REORDER_MODE_SET', payload: isReorderMode })
+  }, [dispatch])
+
+  const updatePlayerOrder = useCallback((newStats) => {
+    dispatch({ type: 'PLAYERS_REORDERED', payload: { stats: newStats } })
+  }, [dispatch])
+  
+  return { 
+    updateScore, 
+    setLoading, 
+    setError, 
+    clearAllTallies,
+    setReorderMode,
+    updatePlayerOrder
+  }
 }
