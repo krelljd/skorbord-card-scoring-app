@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { useGameManager } from '../../hooks/useGameManager.js'
@@ -37,13 +37,30 @@ const GamePlay = ({
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [dealerModalOpen, setDealerModalOpen] = useState(false)
 
-  // Drag and drop sensors
+  // Drag and drop sensors with iOS touch optimization
   const sensors = useSensors(
+    // Enhanced PointerSensor for both mouse and touch
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8, // 8px of movement required to start drag
+        tolerance: 5, // Tolerance for pointer movement
+        delay: 250, // 250ms delay for iOS long press to avoid conflicts with scrolling
       },
     }),
+    // TouchSensor specifically for iOS with optimized settings
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250, // 250ms long press for iOS
+        tolerance: 8, // Slightly higher tolerance for touch
+      },
+    }),
+    // MouseSensor for precise mouse interactions
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 5, // Shorter distance for mouse precision
+      },
+    }),
+    // Keyboard support for accessibility
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -110,8 +127,32 @@ const GamePlay = ({
 
   // Toggle reorder mode
   const toggleReorderMode = useCallback(() => {
-    setReorderMode(!gameState.isReorderMode)
+    const newReorderMode = !gameState.isReorderMode
+    setReorderMode(newReorderMode)
+    
+    // iOS: Prevent body scroll during reorder mode
+    if (newReorderMode) {
+      document.body.style.overflow = 'hidden'
+      document.body.style.touchAction = 'none'
+      document.body.style.position = 'fixed'
+      document.body.style.width = '100%'
+    } else {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
+      document.body.style.position = ''
+      document.body.style.width = ''
+    }
   }, [setReorderMode, gameState.isReorderMode])
+
+  // Cleanup iOS body styles on unmount
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.touchAction = ''
+      document.body.style.position = ''
+      document.body.style.width = ''
+    }
+  }, [])
 
   // Handle drag end for player reordering
   const handleDragEnd = useCallback(async (event) => {
@@ -240,14 +281,14 @@ const GamePlay = ({
         </div>
       </div>
 
-      {/* Reorder Mode Alert */}
+      {/* Reorder Mode Alert - Enhanced for iOS */}
       {gameState.isReorderMode && (
         <div className="alert alert-info mb-4">
           <div className="flex-1">
             <div className="flex flex-col">
               <h3 className="font-bold">Reorder Mode Active</h3>
               <p className="text-sm opacity-75">
-                Drag and drop player cards to reorder them. Scoring is disabled while in reorder mode.
+                Drag and drop player cards to reorder them. Touch and hold for 250ms to start dragging on mobile devices.
               </p>
             </div>
           </div>

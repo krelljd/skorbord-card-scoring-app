@@ -150,33 +150,66 @@
     /* DaisyUI classes: card bg-base-200 shadow-xl are applied in JSX */
   }
   
-  /* Drag and Drop Styles */
+  /* Drag and Drop Styles - Enhanced for iOS Touch */
   .dragging {
     opacity: 0.5;
     transform: rotate(5deg);
     z-index: 1000;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    /* iOS touch optimization */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
   
   .drop-zone-active {
     border: 2px dashed hsl(var(--p));
     background-color: hsl(var(--p) / 0.1);
+    /* iOS visual feedback enhancement */
+    transition: all 0.2s ease-in-out;
   }
   
   .drag-handle {
     cursor: grab;
     touch-action: none;
     color: hsl(var(--bc) / 0.6);
+    /* iOS touch target optimization */
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
   
   .drag-handle:active {
     cursor: grabbing;
+    /* iOS haptic-like visual feedback */
+    transform: scale(1.1);
+    transition: transform 0.1s ease-out;
   }
   
+  /* iOS-specific reorder mode optimizations */
   .reorder-mode {
     background: linear-gradient(45deg, transparent 30%, hsl(var(--wa) / 0.1) 30%, hsl(var(--wa) / 0.1) 70%, transparent 70%);
     background-size: 20px 20px;
     animation: reorder-pulse 2s ease-in-out infinite;
+    /* Prevent iOS scroll during reorder */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow: hidden; /* Prevent iOS overscroll bounce */
+  }
+  
+  /* Enhanced reorder visual feedback for touch */
+  .reorder-mode .drag-handle {
+    background: hsl(var(--p) / 0.1);
+    border: 1px solid hsl(var(--p) / 0.3);
+    border-radius: 8px;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
   }
   
   @keyframes reorder-pulse {
@@ -395,14 +428,32 @@
     100% { opacity: 0; transform: translateY(-10px); }
   }
 
-  /* Connection status indicator */
+    /* Connection status indicator */
 .connection-indicator {
   /* Inline by default; no fixed positioning */
   display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
   /* DaisyUI classes: badge badge-sm badge-success/badge-error are applied in JSX */
 }
+
+  /* iOS Touch Drag Utilities */
+  .scale-102 {
+    transform: scale(1.02);
+  }
+  
+  .ios-drag-active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease-out;
+  }
+  
+  .ios-drag-feedback {
+    animation: ios-drag-pulse 0.3s ease-out;
+  }
+  
+  @keyframes ios-drag-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
   
   /* Slide in animations for mobile views */
   .slide-in-bottom {

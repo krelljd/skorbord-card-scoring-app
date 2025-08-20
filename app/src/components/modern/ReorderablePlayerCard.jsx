@@ -55,16 +55,32 @@ const ReorderablePlayerCard = forwardRef(({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} ${
-        isOver ? 'ring-2 ring-primary ring-offset-2' : ''
-      }`}
+      className={`relative transition-all duration-200 ${
+        isDragging ? 'cursor-grabbing scale-105 rotate-2' : 'cursor-grab'
+      } ${isOver ? 'ring-2 ring-primary ring-offset-2 scale-102' : ''} ${
+        isReorderMode ? 'touch-none shadow-lg border border-primary/20' : ''
+      }`} // Enhanced iOS visual feedback
       {...attributes}
       {...listeners}
       aria-label={`Drag to reorder ${player.name}`}
+      // iOS touch optimization
+      onTouchStart={(e) => {
+        // Prevent default iOS behaviors during reorder mode
+        if (isReorderMode) {
+          e.stopPropagation()
+          // Add slight scale feedback for iOS (haptic-like)
+          e.currentTarget.style.transform = 'scale(0.98)'
+          setTimeout(() => {
+            if (e.currentTarget) {
+              e.currentTarget.style.transform = ''
+            }
+          }, 150)
+        }
+      }}
     >
-      {/* Drag Handle Overlay */}
-      <div className="absolute top-2 right-2 z-10 bg-base-100/90 rounded-lg p-1 shadow-md">
-        <div className="text-base-content/60 text-sm select-none">
+      {/* Drag Handle Overlay - Enhanced for iOS */}
+      <div className="absolute top-2 right-2 z-10 bg-base-100/95 rounded-lg p-2 shadow-lg min-w-[44px] min-h-[44px] flex items-center justify-center border border-primary/30 backdrop-blur-sm">
+        <div className="text-primary text-lg select-none leading-none font-bold">
           ⋮⋮
         </div>
       </div>
