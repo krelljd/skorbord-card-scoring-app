@@ -191,7 +191,11 @@ const PlayerCard = ({
               )}
               
               {/* Main Score */}
-              <div className={`text-2xl font-bold ${isWinner ? 'text-success' : 'text-base-content'}`}>
+              <div className={`text-2xl font-bold ${
+                isWinner ? 'text-success' : 
+                safePlayer.score < 0 ? 'text-error' : 
+                'text-base-content'
+              }`}>
                 {safePlayer.score}
               </div>
             </div>
@@ -216,7 +220,7 @@ const PlayerCard = ({
               onPointerCancel={minusPointer.handlePointerCancel}
               onPointerLeave={minusPointer.handlePointerLeave}
               onKeyDown={(e) => handleKeyDown(e, -1)}
-              disabled={safePlayer.score === 0 || disabled}
+              disabled={safePlayer.score <= -999 || disabled}
               aria-label={`Subtract point from ${safePlayer.name}`}
               style={{ touchAction: 'manipulation' }}
             >
@@ -234,7 +238,7 @@ const PlayerCard = ({
               onPointerCancel={plusPointer.handlePointerCancel}
               onPointerLeave={plusPointer.handlePointerLeave}
               onKeyDown={(e) => handleKeyDown(e, 1)}
-              disabled={disabled}
+              disabled={safePlayer.score >= 999 || disabled}
               aria-label={`Add point to ${safePlayer.name}`}
               style={{ touchAction: 'manipulation' }}
             >

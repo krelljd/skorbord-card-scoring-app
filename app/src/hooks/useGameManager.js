@@ -25,20 +25,24 @@ export function useGameManager(sqid) {
     let gameWinner = null
 
     if (winConditionType === 'win') {
-      // Win condition: first player to reach the target score
-      const qualifiedPlayers = stats.filter(stat => stat.score >= winCondition)
+      // Win condition: first player to reach the target score (must be positive)
+      const qualifiedPlayers = stats.filter(stat => stat.score >= winCondition && stat.score > 0)
       if (qualifiedPlayers.length > 0) {
         gameWinner = qualifiedPlayers.reduce((max, current) =>
           current.score > max.score ? current : max
         )
       }
     } else if (winConditionType === 'lose') {
-      // Lose condition: when someone hits the target, lowest score wins
+      // Lose condition: when someone hits the target, lowest score wins (must be positive)
       const anyLoser = stats.some(stat => stat.score >= winCondition)
       if (anyLoser) {
-        gameWinner = stats.reduce((min, current) =>
-          current.score < min.score ? current : min
-        )
+        // Only consider positive scores for winning
+        const eligibleWinners = stats.filter(stat => stat.score > 0)
+        if (eligibleWinners.length > 0) {
+          gameWinner = eligibleWinners.reduce((min, current) =>
+            current.score < min.score ? current : min
+          )
+        }
       }
     }
 

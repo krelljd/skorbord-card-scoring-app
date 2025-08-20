@@ -168,23 +168,23 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
                               } else if (field.key === 'last_10_results') {
                                 value = value ? value.split('').join(' ') : 'N/A';
                               } else if (field.key === 'max_win_margin') {
-                                // Win margins are now correctly calculated in backend for both win/lose conditions
-                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
+                                // Win margins are distances between scores (always positive)
+                                value = value !== undefined && value !== null ? Number(value) : 'N/A';
                               } else if (field.key === 'min_win_margin') {
-                                // Win margins are now correctly calculated in backend for both win/lose conditions
-                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
+                                // Win margins are distances between scores (always positive)
+                                value = value !== undefined && value !== null ? Number(value) : 'N/A';
                               } else if (field.key === 'max_loss_margin') {
-                                // Loss margins are now correctly calculated in backend for both win/lose conditions
-                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
+                                // Loss margins are distances between scores (always positive)
+                                value = value !== undefined && value !== null ? Number(value) : 'N/A';
                               } else if (field.key === 'min_loss_margin') {
-                                // Loss margins are now correctly calculated in backend for both win/lose conditions
-                                value = value !== undefined && value !== null ? Math.max(0, Number(value)) : 'N/A';
+                                // Loss margins are distances between scores (always positive)
+                                value = value !== undefined && value !== null ? Number(value) : 'N/A';
                               } else {
-                                // Ensure any other numeric values are non-negative
+                                // Allow negative values for scores
                                 if (typeof value === 'number') {
-                                  value = Math.max(0, value);
+                                  value = value;
                                 } else if (value !== undefined && value !== null && !isNaN(Number(value))) {
-                                  value = Math.max(0, Number(value));
+                                  value = Number(value);
                                 } else {
                                   value = value !== undefined && value !== null ? value : 'N/A';
                                 }
@@ -225,9 +225,9 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
                     // Display all scores in "# - # - #" format, highest first
                     let matchScore = 'N/A';
                     if (game.player_scores && game.player_scores.length >= 2) {
-                      // Sort scores by highest first, ensuring all scores are non-negative
+                      // Sort scores by highest first, allowing negative scores
                       const sortedScores = [...game.player_scores]
-                        .map(ps => ({ ...ps, score: Math.max(0, Number(ps.score) || 0) }))
+                        .map(ps => ({ ...ps, score: Number(ps.score) || 0 }))
                         .sort((a, b) => b.score - a.score);
                       const scoreList = sortedScores.map(ps => ps.score).join(' - ');
                       matchScore = scoreList;

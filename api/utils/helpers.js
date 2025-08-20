@@ -242,8 +242,15 @@ export function determineWinner(gameType, playerScores) {
     return null;
   }
 
+  // For both win and lose conditions, only positive scores can win
+  const eligibleWinners = qualifiedPlayers.filter(player => player.score > 0);
+  
+  if (eligibleWinners.length === 0) {
+    return null;
+  }
+
   // Sort by score and return the best player
-  qualifiedPlayers.sort((a, b) => {
+  eligibleWinners.sort((a, b) => {
     if (is_win_condition) {
       return b.score - a.score; // Highest score wins
     } else {
@@ -251,5 +258,5 @@ export function determineWinner(gameType, playerScores) {
     }
   });
 
-  return qualifiedPlayers[0].player_id;
+  return eligibleWinners[0].player_id;
 }

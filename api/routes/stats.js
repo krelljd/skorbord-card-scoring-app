@@ -64,7 +64,14 @@ router.post('/', validateGameAccess, validateUpdateStats, async (req, res, next)
       if (!validPlayerIds.has(stat.player_id)) {
         throw new ValidationError('Player not found in this game');
       }
+      
+      if (!Number.isInteger(stat.score)) {
+        throw new ValidationError('Score delta must be an integer');
+      }
     }
+    
+    const minScore = parseInt(process.env.MIN_SCORE) || -999;
+    const maxScore = parseInt(process.env.MAX_SCORE) || 999;
     
     // Increment the player's score by the delta provided
     await db.transaction(async (db) => {
@@ -77,6 +84,12 @@ router.post('/', validateGameAccess, validateUpdateStats, async (req, res, next)
         );
         if (!current) throw new ValidationError('Player stat not found');
         const newScore = current.score + stat.score; // stat.score is the delta
+        
+        // Validate score bounds to match database constraint
+        if (newScore < minScore || newScore > maxScore) {
+          throw new ValidationError(`Score must be between ${minScore} and ${maxScore}. Attempted score: ${newScore}`);
+        }
+        
         await db.run(
           'UPDATE stats SET score = ?, updated_at = ? WHERE game_id = ? AND player_id = ?',
           [newScore, timestamp, gameId, stat.player_id]
