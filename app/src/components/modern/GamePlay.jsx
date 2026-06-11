@@ -295,6 +295,13 @@ const GamePlay = ({
         </div>
       )}
 
+      {/* Connection warning - changes may not be saved while offline */}
+      {!gameManager.isConnected && (
+        <div className="alert alert-warning">
+          <span>⚠️ Reconnecting — score changes may not be saved.</span>
+        </div>
+      )}
+
       {/* Players Grid */}
       {sortedPlayers.length > 0 ? (
         <DndContext
@@ -330,7 +337,7 @@ const GamePlay = ({
                     isDealer={gameManager.game?.dealer_id === playerStat.player_id}
                     isWinner={isWinner}
                     onDealerClick={cycleDealer}
-                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode}
+                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode || !gameManager.isConnected}
                   />
                 );
               })}
