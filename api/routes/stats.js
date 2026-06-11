@@ -1,14 +1,18 @@
 import express from 'express';
-import { 
+import {
   validateUpdateStats,
-  validateGameAccess 
+  validateGameAccess
 } from '../middleware/validation.js';
 import { createResponse, generateUUID, determineWinner } from '../utils/helpers.js';
 import { buildScoreUpdatePayload } from '../utils/scoreBroadcast.js';
 import { ValidationError, ConflictError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
+import { createScoreRateLimiter } from '../middleware/scoreRateLimit.js';
 
 const router = express.Router({ mergeParams: true });
+
+// Per-sqid cap on score writes (in addition to the global per-IP limiter).
+const scoreLimiter = createScoreRateLimiter({ capacity: 30, refillPerSec: 15 });
 
 /**
  * GET /api/:sqid/games/:gameId/stats - Get stats for a game
@@ -37,7 +41,7 @@ router.get('/', validateGameAccess, async (req, res, next) => {
 /**
  * POST /api/:sqid/games/:gameId/stats - Add/update player stats
  */
-router.post('/', validateGameAccess, validateUpdateStats, async (req, res, next) => {
+router.post('/', validateGameAccess, scoreLimiter.middleware, validateUpdateStats, async (req, res, next) => {
   try {
     const { sqid, gameId } = req.params;
     const { stats } = req.body;
