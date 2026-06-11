@@ -14,11 +14,6 @@ import ConnectionStatus from './ConnectionStatus.jsx'
 // Lazy-loaded admin components for better performance
 import { LazyAdminPanel, LazyRivalryStats } from './LazyComponents.jsx'
 
-// Legacy components for fallback during migration
-import LegacyGameSetup from './GameSetup.jsx'
-import LegacyGamePlay from './GamePlay.jsx'
-import RivalryStats from './RivalryStats.jsx'
-import AdminPanel from './AdminPanel.jsx'
 
 /**
  * Modern CardApp component with migration support
@@ -44,9 +39,6 @@ const ModernCardApp = () => {
     loading: dataLoading, 
     error: dataError 
   } = useAppData(sqid)
-  
-  // Check if we should use modern components (default to true for Phase 5)
-  const useModern = true // Default to modern
   
   // App state - simplified with modern state management
   const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
@@ -116,8 +108,7 @@ const ModernCardApp = () => {
     )
   }
 
-  // Modern component wrapper
-  const ModernApp = () => (
+  return (
     <ErrorBoundary>
       <ToastProvider>
         <GameStateProvider sqid={sqid}>
@@ -202,82 +193,6 @@ const ModernCardApp = () => {
       </ToastProvider>
     </ErrorBoundary>
   )
-
-  // Legacy component wrapper for fallback
-  const LegacyApp = () => (
-    <div className="mobile-container">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Skorbord Cards</h1>
-        <ConnectionStatus />
-      </div>
-      
-      {/* Legacy navigation */}
-      {currentView !== 'setup' && (
-        <div className="flex gap-2 mb-4 flex-wrap">
-          <button
-            className={`btn btn-sm ${currentView === 'playing' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setCurrentView('playing')}
-          >
-            Game
-          </button>
-          <button
-            className={`btn btn-sm ${currentView === 'rivalry-stats' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setCurrentView('rivalry-stats')}
-          >
-            Stats
-          </button>
-          <button
-            className={`btn btn-sm ${currentView === 'admin' ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setCurrentView('admin')}
-          >
-            Admin
-          </button>
-          <button
-            className="btn btn-sm btn-outline"
-            onClick={() => setCurrentView('setup')}
-          >
-            New Game
-          </button>
-        </div>
-      )}
-
-      {/* Legacy content */}
-      {currentView === 'setup' && (
-        <LegacyGameSetup 
-          sqid={sqid} 
-          gameTypes={gameTypes}
-          players={players}
-          rivalries={rivalries}
-          onGameStart={() => setCurrentView('playing')}
-        />
-      )}
-      
-      {currentView === 'playing' && (
-        <LegacyGamePlay sqid={sqid} />
-      )}
-      
-      {currentView === 'rivalry-stats' && (
-        <RivalryStats 
-          sqid={sqid} 
-          rivalries={rivalries}
-          players={players}
-          backToSetup={() => setCurrentView('setup')}
-        />
-      )}
-      
-      {currentView === 'admin' && (
-        <AdminPanel 
-          sqid={sqid} 
-          gameTypes={gameTypes}
-          setGameTypes={setGameTypes}
-          backToSetup={() => setCurrentView('setup')}
-        />
-      )}
-    </div>
-  )
-
-  // Render modern or legacy based on param
-  return useModern ? <ModernApp /> : <LegacyApp />
 }
 
 // Memoize the entire app to prevent unnecessary re-renders
