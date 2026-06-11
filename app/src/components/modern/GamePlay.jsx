@@ -321,6 +321,7 @@ const GamePlay = ({
                       gamesWon: playerStat.games_won
                     }}
                     playerIndex={index}
+                    tally={gameState.scoreTallies[playerStat.player_id] || null}
                     isReorderMode={gameState.isReorderMode}
                     onScoreUpdate={(playerId, change) => {
                       // PlayerCard now passes change directly
