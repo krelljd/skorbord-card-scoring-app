@@ -23,7 +23,7 @@ import favoritesRoutes from './routes/favorites.js';
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
 import { validateSquid, validateCreateSquid } from './middleware/validation.js';
-// import { socketAuthMiddleware } from './middleware/socketAuth.js';
+import { socketAuthMiddleware } from './middleware/socketAuth.js';
 
 // Import utilities  
 import { createResponse, isValidId } from './utils/helpers.js';
@@ -181,7 +181,7 @@ app.get('*', (req, res) => {
 });
 
 // Socket.IO middleware and handlers
-// io.use(socketAuthMiddleware);
+io.use(socketAuthMiddleware);
 io.on('connection', (socket) => handleConnection(io, socket));
 
 // Error handling middleware (must be last)
@@ -201,7 +201,7 @@ const PORT = process.env.PORT || 2525;
 httpServer.listen(PORT, () => {
   console.log(`🚀 Skorbord API server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🗄️ Database: ${process.env.DATABASE_URL}`);
+  console.log(`🗄️ Database: ${process.env.DATABASE_URL || 'sqlite:///db/cards-sqlite.db (default)'}`);
   if (process.env.NODE_ENV === 'development') {
     console.log(`🌐 Server accessible at: http://localhost:2525`);
   }
