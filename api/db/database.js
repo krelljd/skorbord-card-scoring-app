@@ -6,6 +6,29 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const RETRYABLE_CODES = new Set(['SQLITE_BUSY', 'SQLITE_IOERR', 'SQLITE_LOCKED']);
+
+/**
+ * Retry a DB operation on transient SQLite errors with linear backoff.
+ * @param {() => Promise<any>} fn
+ * @param {{ retries?: number, delayMs?: number }} [opts]
+ */
+export async function retryOnBusy(fn, { retries = 3, delayMs = 50 } = {}) {
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!RETRYABLE_CODES.has(error?.code) || attempt >= retries) {
+        throw error;
+      }
+      attempt++;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+}
+
 class DatabaseManager {
   constructor() {
     this.db = null;
