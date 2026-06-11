@@ -16,12 +16,11 @@ import { LazyAdminPanel, LazyRivalryStats } from './LazyComponents.jsx'
 
 
 /**
- * Modern CardApp component with migration support
+ * Modern CardApp component
  * - Modern architecture with context-based state management
  * - Code splitting for admin views
  * - Error boundaries for reliability
  * - Performance optimizations with memoization
- * - Fallback to legacy components during migration
  */
 const ModernCardApp = () => {
   const { sqid } = useParams()
