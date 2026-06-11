@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useGameState, useGameDispatch, useGameActions } from '../contexts/GameStateContext.jsx'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import gameAPI from '../services/gameAPI.js'
+import { shouldApplyRemoteTally } from './scoreSync.js'
 
 /**
  * Modern hook that integrates game state management with API and WebSocket services
@@ -167,23 +168,11 @@ export function useGameManager(sqid) {
       // Check for winner after score update
       checkForWinner(updatedStats)
 
-      // Sync with server (individual change) - this updates the database
-      await gameAPI.updatePlayerScore(sqid, playerId, change)
-
-      // Send WebSocket event immediately with accumulated total
-      // Backend will exclude this client from receiving the broadcast
-      if (socket?.connected) {
-        const updatedPlayerScore = gameState.gameStats.find(s => s.player_id === playerId)?.score || 0
-        
-        socket.emit('update_score', {
-          sqid,
-          playerId,
-          change: newAccumulation, // Send the total accumulated change
-          newScore: updatedPlayerScore + change, // Updated score after this individual change
-          isAccumulated: true, // Flag to indicate this is an accumulated total
-          timestamp: Date.now() // Add timestamp to help with ordering
-        })
-      }
+      // Sync with server. The server is the single broadcaster: it emits the
+      // authoritative score_update to the whole room (including us). We pass our
+      // socketId so the server echoes originSocketId and we can suppress our own
+      // tally re-animation. No client relay emit.
+      await gameAPI.updatePlayerScore(sqid, gameState.game?.id, playerId, change, socket?.id || null)
 
     } catch (error) {
       console.error('Failed to update score:', error)
@@ -256,16 +245,6 @@ export function useGameManager(sqid) {
       }
 
       return response
-
-      // Clear glow effect after animation
-      if (movedPlayerId) {
-        setTimeout(() => {
-          dispatch({
-            type: 'GLOW_CLEARED',
-            payload: { playerId: movedPlayerId }
-          })
-        }, 1000)
-      }
     } catch (error) {
       console.error('Failed to update player order:', error)
       setError(`Failed to reorder players: ${error.message}`)
@@ -278,58 +257,32 @@ export function useGameManager(sqid) {
 
     const cleanupFunctions = []
 
-    // Listen for score updates from other clients
+    // Apply the authoritative score_update broadcast directly — no refetch.
     const handleScoreUpdate = (data) => {
-      if (data.sqid === sqid) {
-        console.debug('[WS] handleScoreUpdate received from another client:', data)
-        
-        // Display the accumulated total received from the sender
-        // Use SCORE_TALLY_SET to show exactly what was sent (no local accumulation)
+      if (data.sqid !== sqid) return
+
+      // Apply authoritative stats. This reconciles the acting client's
+      // optimistic value too (server wins on any drift).
+      dispatch({ type: 'GAME_STATS_SYNCED', payload: { stats: data.stats } })
+
+      // Winner derives from the authoritative stats (equals the server's
+      // winnerId, since it is the same data).
+      checkForWinner(data.stats)
+
+      // Animate the "+N" tally for events from other clients only.
+      if (shouldApplyRemoteTally(data, socket?.id || null)) {
         dispatch({
           type: 'SCORE_TALLY_SET',
-          payload: {
-            playerId: data.playerId,
-            change: data.change // This is the total accumulated change from the sender
-          }
+          payload: { playerId: data.playerId, change: data.change }
         })
-        
-        // Clear any existing timeout for this player (rolling window)
+
         if (remoteTallyTimeouts.current[data.playerId]) {
           clearTimeout(remoteTallyTimeouts.current[data.playerId])
         }
-        
-        // Set new 3-second timer for this specific player (rolling window)
         remoteTallyTimeouts.current[data.playerId] = setTimeout(() => {
-          dispatch({
-            type: 'SCORE_TALLY_CLEARED',
-            payload: { playerId: data.playerId }
-          })
-          
-          // Clean up the timeout reference
+          dispatch({ type: 'SCORE_TALLY_CLEARED', payload: { playerId: data.playerId } })
           delete remoteTallyTimeouts.current[data.playerId]
         }, 3000)
-        
-        // Fetch latest game stats immediately to sync with server state
-        // No debouncing needed since this client won't receive its own events
-        const refreshGameData = async () => {
-          try {
-            const [gameData, statsData] = await Promise.all([
-              gameAPI.getGame(sqid),
-              gameAPI.getGameStats(sqid)
-            ])
-            dispatch({
-              type: 'GAME_LOADED',
-              payload: {
-                game: gameData,
-                stats: statsData
-              }
-            })
-            checkForWinner(statsData)
-          } catch (error) {
-            console.error('Failed to refresh game data after score update:', error)
-          }
-        }
-        refreshGameData()
       }
     }
 
@@ -467,50 +420,3 @@ export function useGameManager(sqid) {
   }
 }
 
-/**
- * Hook for managing dealer selection
- */
-export function useDealerManager(sqid) {
-  const dispatch = useGameDispatch()
-  const { socket } = useConnection()
-
-  const setDealer = useCallback(async (playerId) => {
-    try {
-      await gameAPI.setDealer(sqid, playerId)
-      
-      dispatch({
-        type: 'DEALER_SET',
-        payload: { playerId }
-      })
-
-      // Emit to WebSocket
-      if (socket?.connected) {
-        socket.emit('dealer:set', { sqid, playerId })
-      }
-    } catch (error) {
-      console.error('Failed to set dealer:', error)
-      throw error
-    }
-  }, [sqid, socket, dispatch])
-
-  // Memoize the returned object to prevent unnecessary re-renders
-  const gameManager = useMemo(() => ({
-    ...gameState,
-    loadGame,
-    updatePlayerScore,
-    updatePlayerOrder,
-    finalizeGame,
-    setDealer,
-    loading: gameState.loading,
-    error: gameState.error
-  }), [
-    gameState, 
-    loadGame, 
-    updatePlayerScore, 
-    updatePlayerOrder,
-    finalizeGame, 
-    setDealer
-  ])
-
-  return gameManager
-}

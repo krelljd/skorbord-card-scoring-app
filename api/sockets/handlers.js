@@ -24,16 +24,6 @@ export function handleConnection(io, socket) {
     console.log(`🔌 Socket joined Sqid: ${sqid} (${socket.id})`);
   });
 
-  // Broadcast score updates to sqid room (exclude sender)
-  socket.on('update_score', async (data) => {
-    if (!socket.sqid) return;
-    socket.to(`/sqid/${socket.sqid}`).emit('score_update', { 
-      ...data, 
-      timestamp: new Date().toISOString(),
-      senderId: socket.id // Include sender ID for debugging
-    });
-  });
-
   // Broadcast player activity to sqid room (exclude sender)
   socket.on('player_activity', (data) => {
     if (!socket.sqid) return;

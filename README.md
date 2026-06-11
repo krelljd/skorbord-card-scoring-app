@@ -187,10 +187,10 @@ The application is optimized for Raspberry Pi deployment:
 **Backend (.env)**
 
 ```bash
-PORT=2424
-DB_FILE=./data/skorbord.db
+PORT=2525
+DATABASE_URL=sqlite:///db/cards-sqlite.db
 NODE_ENV=development
-SOCKET_CORS_ORIGIN=http://localhost:3000
+SOCKET_CORS_ORIGIN=http://localhost:2424
 ```
 
 **Frontend (.env)**

@@ -1,26 +1,6 @@
 /**
- * Modern API service layer using async/await and proper error handling
- * Replaces inline fe  async updateScore(sqid, gameId, updates) {
-    const response = await this.request(`/api/${sqid}/games/${gameId}/stats`, {
-      method: 'PUT',
-      body: JSON.stringify(updates)
-    })
-    return response.data
-  }
-
-  // Simplified method for updating a single player's score
-  async updatePlayerScore(sqid, playerId, change) {
-    // Get active game first
-    const game = await this.getActiveGame(sqid)
-    if (!game?.id) {
-      throw new Error('No active game found')
-    }
-    
-    return this.updateScore(sqid, game.id, {
-      player_id: playerId,
-      score_change: change
-    })
-  }ls with reusable service methods
+ * Modern API service layer using async/await and proper error handling.
+ * Replaces inline fetch calls with reusable service methods.
  */
 
 class APIError extends Error {
@@ -108,21 +88,19 @@ class GameAPI {
     return response?.data || []
   }
 
-  // Simplified method for updating a single player's score
-  async updatePlayerScore(sqid, playerId, change) {
-    // Get active game first
-    const game = await this.getActiveGame(sqid)
-    if (!game?.id) {
+  // Update a single player's score by a delta. The caller supplies the
+  // active gameId (from state) and its socketId so the server can echo
+  // originSocketId on the broadcast. No getActiveGame round-trip.
+  async updatePlayerScore(sqid, gameId, playerId, change, socketId = null) {
+    if (!gameId) {
       throw new Error('No active game found')
     }
-    
-    const response = await this.request(`/api/${sqid}/games/${game.id}/stats`, {
+
+    const response = await this.request(`/api/${sqid}/games/${gameId}/stats`, {
       method: 'POST',
-      body: JSON.stringify({ 
-        stats: [{
-          player_id: playerId,
-          score: change
-        }]
+      body: JSON.stringify({
+        stats: [{ player_id: playerId, score: change }],
+        socketId
       })
     })
     return response?.data

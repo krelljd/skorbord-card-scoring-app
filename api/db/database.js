@@ -6,104 +6,121 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const RETRYABLE_CODES = new Set(['SQLITE_BUSY', 'SQLITE_IOERR', 'SQLITE_LOCKED']);
+
+/**
+ * Retry a DB operation on transient SQLite errors with linear backoff.
+ * @param {() => Promise<any>} fn
+ * @param {{ retries?: number, delayMs?: number }} [opts]
+ */
+export async function retryOnBusy(fn, { retries = 3, delayMs = 50 } = {}) {
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!RETRYABLE_CODES.has(error?.code) || attempt >= retries) {
+        throw error;
+      }
+      attempt++;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+}
+
 class DatabaseManager {
   constructor() {
     this.db = null;
     this.isInitialized = false;
+    this.initPromise = null;
   }
 
-  async initialize() {
-    if (this.isInitialized) {
-      return this.db;
+  initialize() {
+    // Cache the in-flight promise so concurrent first callers await one init.
+    if (this.initPromise) {
+      return this.initPromise;
     }
 
-    try {
-      // Parse database URL
-      const dbUrl = process.env.DATABASE_URL || 'sqlite:///db/cards-sqlite.db';
-      let dbPath = dbUrl.replace(/^sqlite:\/\/\//, '');
-      
-      // Handle relative paths
-      if (!dbPath.startsWith('/')) {
-        dbPath = join(__dirname, '..', dbPath);
-      }
-
-      // Ensure directory exists
-      const dbDir = dirname(dbPath);
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-      }
-
-      // Initialize SQLite with sqlite3
-      this.db = new sqlite3.Database(dbPath);
-      
-      // Set initialized flag before running PRAGMA statements to avoid infinite recursion
-      this.isInitialized = true;
-      
-      // Enable foreign key constraints
-      await this.run('PRAGMA foreign_keys = ON');
-      
-      // Enable WAL mode for better concurrency
-      await this.run('PRAGMA journal_mode = WAL');
-
-      console.log(`📊 SQLite database initialized: ${dbPath}`);
-      
-      return this.db;
-    } catch (error) {
-      console.error('❌ Database initialization failed:', error);
-      this.isInitialized = false; // Reset flag on error
+    this.initPromise = this._doInitialize().catch((error) => {
+      // Allow a later retry if init failed.
+      this.initPromise = null;
+      this.isInitialized = false;
       throw error;
+    });
+    return this.initPromise;
+  }
+
+  async _doInitialize() {
+    const dbUrl = process.env.DATABASE_URL || 'sqlite:///db/cards-sqlite.db';
+    let dbPath = dbUrl.replace(/^sqlite:\/\/\//, '');
+
+    if (!dbPath.startsWith('/')) {
+      dbPath = join(__dirname, '..', dbPath);
     }
+
+    const dbDir = dirname(dbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+
+    this.db = new sqlite3.Database(dbPath);
+
+    // Run PRAGMAs directly against the handle (not through the guarded run()),
+    // and only mark initialized once they have all completed.
+    await this._runRaw('PRAGMA foreign_keys = ON');
+    await this._runRaw('PRAGMA journal_mode = WAL');
+    await this._runRaw('PRAGMA busy_timeout = 5000');
+
+    this.isInitialized = true;
+    console.log(`📊 SQLite database initialized: ${dbPath}`);
+    return this.db;
+  }
+
+  // Raw run that does NOT trigger initialize() — used only during init.
+  _runRaw(sql, params = []) {
+    return new Promise((resolve, reject) => {
+      this.db.run(sql, params, function (err) {
+        if (err) reject(err);
+        else resolve({ changes: this.changes, lastID: this.lastID });
+      });
+    });
   }
 
   async query(sql, params = []) {
     if (!this.isInitialized) {
       await this.initialize();
     }
-
-    return new Promise((resolve, reject) => {
+    return retryOnBusy(() => new Promise((resolve, reject) => {
       this.db.all(sql, params, (err, rows) => {
-        if (err) {
-          console.error('❌ Database query error:', err);
-          reject(err);
-        } else {
-          resolve(rows);
-        }
+        if (err) { console.error('❌ Database query error:', err); reject(err); }
+        else resolve(rows);
       });
-    });
+    }));
   }
 
   async run(sql, params = []) {
     if (!this.isInitialized) {
       await this.initialize();
     }
-
-    return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(err) {
-        if (err) {
-          console.error('❌ Database run error:', err);
-          reject(err);
-        } else {
-          resolve({ changes: this.changes, lastID: this.lastID });
-        }
+    return retryOnBusy(() => new Promise((resolve, reject) => {
+      this.db.run(sql, params, function (err) {
+        if (err) { console.error('❌ Database run error:', err); reject(err); }
+        else resolve({ changes: this.changes, lastID: this.lastID });
       });
-    });
+    }));
   }
 
   async get(sql, params = []) {
     if (!this.isInitialized) {
       await this.initialize();
     }
-
-    return new Promise((resolve, reject) => {
+    return retryOnBusy(() => new Promise((resolve, reject) => {
       this.db.get(sql, params, (err, row) => {
-        if (err) {
-          console.error('❌ Database get error:', err);
-          reject(err);
-        } else {
-          resolve(row);
-        }
+        if (err) { console.error('❌ Database get error:', err); reject(err); }
+        else resolve(row);
       });
-    });
+    }));
   }
 
   async close() {
@@ -114,11 +131,13 @@ class DatabaseManager {
             console.error('❌ Database close error:', err);
           }
           this.isInitialized = false;
+          this.initPromise = null;
           resolve();
         });
       });
     }
     this.isInitialized = false;
+    this.initPromise = null;
   }
 
   // Transaction support

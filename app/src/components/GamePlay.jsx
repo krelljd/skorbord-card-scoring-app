@@ -302,17 +302,21 @@ const GamePlay = ({
   
   // Optimized socket event handlers with useCallback
   const handleScoreUpdate = useCallback((data) => {
-    if (data.game_id === game?.id) {
+    if (data.gameId === game?.id) {
       setGameStats(data.stats)
-      
-      const playerId = data.player_id
-      const change = data.score_change
-      
-      if (change !== 0 && !hasPendingUpdate(`${playerId}-${change}`)) {
+
+      // Canonical score_update schema: playerId/change are present for a
+      // single-tap and null for multi-stat updates.
+      const playerId = data.playerId
+      const change = data.change
+
+      if (change && !hasPendingUpdate(`${playerId}-${change}`)) {
         updateTally(playerId, change)
       }
-      
-      cleanupMatchingUpdates(playerId, change)
+
+      if (playerId != null) {
+        cleanupMatchingUpdates(playerId, change)
+      }
     }
   }, [game?.id, hasPendingUpdate, updateTally, cleanupMatchingUpdates])
   

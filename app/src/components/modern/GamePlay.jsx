@@ -295,6 +295,13 @@ const GamePlay = ({
         </div>
       )}
 
+      {/* Connection warning - changes may not be saved while offline */}
+      {!gameManager.isConnected && (
+        <div className="alert alert-warning">
+          <span>⚠️ Reconnecting — score changes may not be saved.</span>
+        </div>
+      )}
+
       {/* Players Grid */}
       {sortedPlayers.length > 0 ? (
         <DndContext
@@ -321,6 +328,7 @@ const GamePlay = ({
                       gamesWon: playerStat.games_won
                     }}
                     playerIndex={index}
+                    tally={gameState.scoreTallies[playerStat.player_id] || null}
                     isReorderMode={gameState.isReorderMode}
                     onScoreUpdate={(playerId, change) => {
                       // PlayerCard now passes change directly
@@ -329,7 +337,7 @@ const GamePlay = ({
                     isDealer={gameManager.game?.dealer_id === playerStat.player_id}
                     isWinner={isWinner}
                     onDealerClick={cycleDealer}
-                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode}
+                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode || !gameManager.isConnected}
                   />
                 );
               })}

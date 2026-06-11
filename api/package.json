@@ -11,10 +11,10 @@
     "migrate:down": "echo 'Down migrations not supported by migrationRunner.js'",
     "migrate:create": "echo 'Create migration manually in db/migrations/'",
     "sql:execute": "node execute-sql.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:ci": "jest --ci --coverage --watchAll=false"
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "test:coverage": "node --test --experimental-test-coverage",
+    "test:ci": "node --test"
   },
   "dependencies": {
     "compression": "^1.7.4",

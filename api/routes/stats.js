@@ -1,13 +1,18 @@
 import express from 'express';
-import { 
+import {
   validateUpdateStats,
-  validateGameAccess 
+  validateGameAccess
 } from '../middleware/validation.js';
 import { createResponse, generateUUID, determineWinner } from '../utils/helpers.js';
+import { buildScoreUpdatePayload } from '../utils/scoreBroadcast.js';
 import { ValidationError, ConflictError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
+import { createScoreRateLimiter } from '../middleware/scoreRateLimit.js';
 
 const router = express.Router({ mergeParams: true });
+
+// Per-sqid cap on score writes (in addition to the global per-IP limiter).
+const scoreLimiter = createScoreRateLimiter({ capacity: 30, refillPerSec: 15 });
 
 /**
  * GET /api/:sqid/games/:gameId/stats - Get stats for a game
@@ -36,7 +41,7 @@ router.get('/', validateGameAccess, async (req, res, next) => {
 /**
  * POST /api/:sqid/games/:gameId/stats - Add/update player stats
  */
-router.post('/', validateGameAccess, validateUpdateStats, async (req, res, next) => {
+router.post('/', validateGameAccess, scoreLimiter.middleware, validateUpdateStats, async (req, res, next) => {
   try {
     const { sqid, gameId } = req.params;
     const { stats } = req.body;
@@ -115,24 +120,29 @@ router.post('/', validateGameAccess, validateUpdateStats, async (req, res, next)
       [gameId]
     );
 
-    // For tally: get the last changed player and delta
-    let player_id = null;
-    let score_change = null;
+    // For tally: the last changed player and delta (single-tap case)
+    let playerId = null;
+    let change = null;
     if (stats && stats.length === 1) {
-      player_id = stats[0].player_id;
-      score_change = stats[0].score;
+      playerId = stats[0].player_id;
+      change = stats[0].score;
     }
 
-    // Broadcast score update with player_id and score_change for tally
-    req.io?.to(`/sqid/${sqid}`).emit('score_update', {
-      type: 'score_update',
-      game_id: gameId,
-      sqid_id: sqid,
+    // Re-read the winner the transaction may have just set, so the broadcast
+    // carries authoritative winner info.
+    const gameRow = await db.get('SELECT winner_id FROM games WHERE id = ?', [gameId]);
+
+    // Broadcast the single canonical score_update event to the whole sqid room
+    // (including the acting client, which reconciles its optimistic state).
+    req.io?.to(`/sqid/${sqid}`).emit('score_update', buildScoreUpdatePayload({
+      sqid,
+      gameId,
       stats: allStats,
-      player_id,
-      score_change,
-      timestamp: new Date().toISOString()
-    });
+      playerId,
+      change,
+      winnerId: gameRow?.winner_id || null,
+      originSocketId: req.body.socketId || null
+    }));
 
     res.json(createResponse(true, allStats));
   } catch (error) {
@@ -286,16 +296,21 @@ router.put('/:playerId', validateGameAccess, async (req, res, next) => {
       );
     }
     
-    // Broadcast individual score update
-    req.io?.to(`/sqid/${sqid}`).emit('score_update', {
-      type: 'score_update',
-      gameId: gameId,
-      sqidId: sqid,
-      playerId: playerId,
-      score: score,
-      winnerId: winnerId,
-      timestamp: timestamp
-    });
+    // Re-read all stats so the broadcast carries the authoritative array,
+    // matching the canonical schema used by the POST handler.
+    const allStats = await db.query(
+      'SELECT s.*, p.name as player_name, p.color FROM stats s JOIN players p ON s.player_id = p.id WHERE s.game_id = ? ORDER BY s.created_at ASC',
+      [gameId]
+    );
+    req.io?.to(`/sqid/${sqid}`).emit('score_update', buildScoreUpdatePayload({
+      sqid,
+      gameId,
+      stats: allStats,
+      playerId,
+      change: null, // absolute set, not a delta
+      winnerId: winnerId || null,
+      originSocketId: req.body.socketId || null
+    }));
     
     res.json(createResponse(true, updatedStat));
   } catch (error) {

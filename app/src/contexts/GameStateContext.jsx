@@ -1,7 +1,7 @@
 import { createContext, useContext, useReducer, useCallback, useRef } from 'react'
 
 // Game state reducer following React best practices
-function gameStateReducer(state, action) {
+export function gameStateReducer(state, action) {
   switch (action.type) {
     case 'GAME_LOADED': {
       return {
@@ -94,6 +94,14 @@ function gameStateReducer(state, action) {
       const newGlowingCards = new Set(state.glowingCards)
       newGlowingCards.delete(action.payload.playerId)
       return { ...state, glowingCards: newGlowingCards }
+    }
+    case 'GAME_STATS_SYNCED': {
+      // Replace only the stats array from an authoritative server broadcast.
+      // Leaves game, dealer, scoreTallies, and glowingCards untouched.
+      return {
+        ...state,
+        gameStats: action.payload.stats || []
+      }
     }
     case 'GAME_FINALIZED': {
       return {

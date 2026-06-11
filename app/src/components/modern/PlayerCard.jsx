@@ -1,5 +1,4 @@
-import { useState, useCallback, memo, useRef, forwardRef } from 'react'
-import { useGameState } from '../../contexts/GameStateContext.jsx'
+import { useCallback, memo, useRef, forwardRef } from 'react'
 import { usePointerInteraction } from '../../hooks/usePointerInteraction.js'
 
 // DaisyUI semantic color mapping for players
@@ -38,21 +37,21 @@ const getPlayerBgColor = (index) => {
  * @param {number} playerIndex - Index for color assignment (defaults to 0)
  * @param {boolean} isDealer - Whether this player is the dealer
  * @param {boolean} isWinner - Whether this player is the winner
- * @param {Object} gameState - Current game state (unused but kept for compatibility)
+ * @param {Object} tally - This player's score tally slice ({ total, timestamp }) or null
  * @param {Function} onScoreUpdate - Callback for score updates (playerId, newScore)
  * @param {Function} onDealerClick - Callback for dealer badge clicks
  * @param {boolean} disabled - Whether interactions are disabled
  */
-const PlayerCard = forwardRef(({ 
-  player, 
+const PlayerCard = forwardRef(({
+  player,
   playerIndex = 0, // Default to 0 if not provided
-  isDealer, 
+  isDealer,
   isWinner,
-  onScoreUpdate, 
+  tally = null,
+  onScoreUpdate,
   onDealerClick,
-  disabled = false 
+  disabled = false
 }, ref) => {
-  const gameState = useGameState()
   const lastUpdateRef = useRef(0)
 
   // Guard clause - return null if player is not provided
@@ -135,10 +134,6 @@ const PlayerCard = forwardRef(({
   const playerColorClass = getPlayerColor(safePlayerIndex)
   const playerBgClass = getPlayerBgColor(safePlayerIndex)
 
-  // Debug: log tally state for this player
-  if (gameState.scoreTallies[safePlayer.id]) {
-    console.debug('PlayerCard tally:', safePlayer.id, gameState.scoreTallies[safePlayer.id])
-  }
   return (
     <div 
       ref={ref}
@@ -177,17 +172,15 @@ const PlayerCard = forwardRef(({
           <div className="text-right relative">
                 <div className="flex items-center justify-end gap-3">
               {/* Score Tally - Left of Score */}
-              {gameState.scoreTallies[safePlayer.id] && (
+              {tally && (
                 <div
-                  key={gameState.scoreTallies[safePlayer.id].timestamp}
+                  key={tally.timestamp}
                   className={`text-xl font-bold score-tally-animation ${
-                    gameState.scoreTallies[safePlayer.id].total > 0 
-                      ? 'text-success' 
-                      : 'text-error'
+                    tally.total > 0 ? 'text-success' : 'text-error'
                   }`}
                 >
-                  {gameState.scoreTallies[safePlayer.id].total > 0 ? '+' : ''}
-                  {gameState.scoreTallies[safePlayer.id].total}
+                  {tally.total > 0 ? '+' : ''}
+                  {tally.total}
                 </div>
               )}
               
