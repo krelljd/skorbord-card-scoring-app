@@ -188,7 +188,7 @@ The application is optimized for Raspberry Pi deployment:
 
 ```bash
 PORT=2424
-DB_FILE=./data/skorbord.db
+DATABASE_URL=sqlite:///db/cards-sqlite.db
 NODE_ENV=development
 SOCKET_CORS_ORIGIN=http://localhost:3000
 ```
