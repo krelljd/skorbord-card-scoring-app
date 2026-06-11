@@ -37,7 +37,8 @@ const getPlayerBgColor = (index) => {
  * @param {number} playerIndex - Index for color assignment (defaults to 0)
  * @param {boolean} isDealer - Whether this player is the dealer
  * @param {boolean} isWinner - Whether this player is the winner
- *@param {Function} onScoreUpdate - Callback for score updates (playerId, newScore)
+ * @param {Object} tally - This player's score tally slice ({ total, timestamp }) or null
+ * @param {Function} onScoreUpdate - Callback for score updates (playerId, newScore)
  * @param {Function} onDealerClick - Callback for dealer badge clicks
  * @param {boolean} disabled - Whether interactions are disabled
  */
