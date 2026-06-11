@@ -1,0 +1,405 @@
+import { useState, useEffect, memo } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { useConnection } from '../contexts/ConnectionContext.jsx'
+import { GameStateProvider } from '../contexts/GameStateContext.jsx'
+import { ErrorBoundary } from './ErrorBoundary.jsx'
+import { Toast } from './Toast.jsx'
+
+// Modern components
+import GameSetup from './modern/GameSetup.jsx'
+import GamePlay from './modern/GamePlay.jsx'
+import ConnectionStatus from './ConnectionStatus.jsx'
+
+// Lazy-loaded admin components for better performance
+import { LazyAdminPanel, LazyRivalryStats } from './LazyComponents.jsx'
+
+// Legacy components for fallback during migration
+import LegacyGameSetup from './GameSetup.jsx'
+import LegacyGamePlay from './GamePlay.jsx'
+import RivalryStats from './RivalryStats.jsx'
+import AdminPanel from './AdminPanel.jsx'
+
+/**
+ * Modern CardApp component with migration support
+ * - Modern architecture with context-based state management
+ * - Code splitting for admin views
+ * - Error boundaries for reliability
+ * - Performance optimizations with memoization
+ * - Fallback to legacy components during migration
+ */
+const ModernCardApp = () => {
+  const { sqid } = useParams()
+  const [searchParams] = useSearchParams()
+  const { isConnected } = useConnection()
+  
+  // Check if we should use modern components (default to true for Phase 5)
+  const useModern = searchParams.get('modern') !== 'false' // Default to modern
+  
+  // App state - simplified with modern state management
+  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
+  const [currentGame, setCurrentGame] = useState(null) // Track current game for navigation
+  const [players, setPlayers] = useState([])
+  const [gameTypes, setGameTypes] = useState([])
+  const [rivalries, setRivalries] = useState([])
+  const [legacyError, setLegacyError] = useState(null)
+  const [legacyLoading, setLegacyLoading] = useState(true)
+
+  // Toast notifications
+  const { toasts, showToast, hideToast, error: showError, success: showSuccess } = useToast()
+
+  // Combined loading state (gameManager loading handled in GamePlay component)
+  const isLoading = legacyLoading
+
+  // Error handling
+  useEffect(() => {
+    if (legacyError) {
+      showError(legacyError)
+    }
+  }, [legacyError, showError])
+
+  // Use relative paths since we have Vite proxy configured
+  const API_URL = ''
+
+  // Initialize data when socket connects
+  useEffect(() => {
+    if (socket && isConnected && sqid) {
+      setLegacyLoading(true)
+      setLegacyError(null)
+
+      // Join the sqid room (now required for all connections)
+      socket.emit('join-sqid', sqid)
+      
+      // Load initial data (legacy approach for non-game data)
+      loadInitialData()
+
+      // Socket event listeners for real-time updates
+      socket.on('game_updated', handleGameUpdate)
+      socket.on('game_started', handleGameStarted)
+      socket.on('dealer_changed', handleDealerChanged)
+      socket.on('player_updated', handlePlayerUpdate)
+      socket.on('rivalry_updated', handleRivalryUpdate)
+      socket.on('error', handleSocketError)
+
+      return () => {
+        socket.off('game_updated', handleGameUpdate)
+        socket.off('game_started', handleGameStarted)
+        socket.off('player_updated', handlePlayerUpdate)
+        socket.off('rivalry_updated', handleRivalryUpdate)
+        socket.off('error', handleSocketError)
+      }
+    }
+  }, [socket, isConnected, sqid])
+
+  const loadInitialData = async () => {
+    try {
+      // Load players, game types, and rivalries using correct API endpoints
+      const [playersRes, gameTypesRes, rivalriesRes] = await Promise.all([
+        fetch(`${API_URL}/api/${sqid}/players`), // Fixed: players are sqid-specific
+        fetch(`${API_URL}/api/game_types?sqid=${encodeURIComponent(sqid)}`), // Fixed: use correct endpoint with sqid param
+        fetch(`${API_URL}/api/${sqid}/rivalries`) // Fixed: rivalries are sqid-specific
+      ])
+
+      // Check if responses are ok and handle errors properly
+      if (!playersRes.ok && playersRes.status !== 404) {
+        throw new Error(`Failed to load players: ${playersRes.status}`)
+      }
+      if (!gameTypesRes.ok) {
+        throw new Error(`Failed to load game types: ${gameTypesRes.status}`)
+      }
+      if (!rivalriesRes.ok && rivalriesRes.status !== 404) {
+        throw new Error(`Failed to load rivalries: ${rivalriesRes.status}`)
+      }
+
+      // Parse responses with proper error handling
+      const parseResponse = async (response) => {
+        if (response.status === 404 || response.status === 204) {
+          return { data: [] }
+        }
+        return response.json()
+      }
+
+      const [playersData, gameTypesData, rivalriesData] = await Promise.all([
+        parseResponse(playersRes),
+        parseResponse(gameTypesRes),
+        parseResponse(rivalriesRes)
+      ])
+
+      // Handle API response structure safely
+      setPlayers(Array.isArray(playersData) ? playersData : (playersData?.data || []))
+      setGameTypes(Array.isArray(gameTypesData) ? gameTypesData : (gameTypesData?.data || []))
+      setRivalries(Array.isArray(rivalriesData) ? rivalriesData : (rivalriesData?.data || []))
+
+      // Note: Game state is now managed by individual components that need it
+    } catch (error) {
+      console.error('Failed to load initial data:', error)
+      setLegacyError('Failed to load application data: ' + error.message)
+    } finally {
+      setLegacyLoading(false)
+    }
+  }
+
+  // Legacy event handlers (keeping for backwards compatibility)
+  const handleGameUpdate = (data) => {
+    console.log('Game updated:', data)
+    // Game updates are now handled by gameManager
+    showSuccess('Game updated')
+  }
+
+  const handleGameStarted = (data) => {
+    console.log('Game started:', data)
+    setCurrentView('playing')
+    showSuccess('Game started!')
+  }
+
+  const handleDealerChanged = (data) => {
+    console.log('Dealer changed:', data)
+    showSuccess(`Dealer changed to ${data.playerName}`)
+  }
+
+  const handlePlayerUpdate = (data) => {
+    console.log('Player updated:', data)
+    // Refresh players list safely
+    if (sqid) {
+      loadInitialData().catch(error => {
+        console.error('Failed to reload data after player update:', error)
+        setLegacyError('Failed to refresh player data')
+      })
+    }
+  }
+
+  const handleRivalryUpdate = (data) => {
+    console.log('Rivalry updated:', data)
+    // Refresh rivalries safely
+    if (sqid) {
+      loadInitialData().catch(error => {
+        console.error('Failed to reload data after rivalry update:', error)
+        setLegacyError('Failed to refresh rivalry data')
+      })
+    }
+  }
+
+  const handleSocketError = (error) => {
+    console.error('Socket error:', error)
+    setLegacyError(error.message || 'Connection error')
+  }
+
+  // Modern game event handlers
+  const handleGameCreated = (game) => {
+    // Track the created game and switch to playing view
+    setCurrentGame(game)
+    setCurrentView('playing')
+    showSuccess('Game created successfully!')
+  }
+
+  const handleGameFinalized = () => {
+    // Clear current game and return to setup
+    setCurrentGame(null)
+    showSuccess('Game finalized!')
+    setCurrentView('setup')
+  }
+
+  // Error clearing
+  const clearErrors = () => {
+    setLegacyError(null)
+    // Note: gameManager errors are now handled within the GamePlay component
+  }
+
+  // Render loading state
+  if (isLoading) {
+    return <LoadingOverlay message="Loading Skorbord..." />
+  }
+
+  // Render main app
+  return (
+    <div className="mobile-container slide-in-bottom">
+      {/* Header with navigation - fixed at top */}
+      <div className="navbar bg-base-200 rounded-lg mb-2">
+        <div className="navbar-start">
+          {/* Mobile dropdown menu */}
+          <div className="dropdown">
+            <div tabIndex={0} role="button" className="btn btn-ghost lg:hidden">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className="h-5 w-5" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M4 6h16M4 12h8m-8 6h16" 
+                />
+              </svg>
+            </div>
+            <ul 
+              tabIndex={0} 
+              className="menu menu-sm dropdown-content bg-base-100 text-base-content rounded-box z-[1] mt-3 w-52 p-2 shadow"
+            >
+              <li>
+                <button 
+                  onClick={() => setCurrentView('setup')}
+                  className={currentView === 'setup' ? 'active' : ''}
+                >
+                  New Game
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => setCurrentView('playing')}
+                  className={currentView === 'playing' ? 'active' : ''}
+                >
+                  Current Game
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => setCurrentView('rivalry-stats')}
+                  className={currentView === 'rivalry-stats' ? 'active' : ''}
+                >
+                  Stats
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => setCurrentView('admin')}
+                  className={currentView === 'admin' ? 'active' : ''}
+                >
+                  Admin
+                </button>
+              </li>
+            </ul>
+          </div>
+          
+          {/* Brand/Logo */}
+          <button className="btn btn-ghost text-xl font-bold">Skorbord</button>
+        </div>
+        
+        {/* Desktop horizontal menu */}
+        <div className="navbar-center hidden lg:flex">
+          <ul className="menu menu-horizontal px-1">
+            <li>
+              <button 
+                onClick={() => setCurrentView('setup')}
+                className={currentView === 'setup' ? 'active' : ''}
+              >
+                New Game
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setCurrentView('playing')}
+                className={currentView === 'playing' ? 'active' : ''}
+              >
+                Current Game
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setCurrentView('rivalry-stats')}
+                className={currentView === 'rivalry-stats' ? 'active' : ''}
+              >
+                Stats
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => setCurrentView('admin')}
+                className={currentView === 'admin' ? 'active' : ''}
+              >
+                Admin
+              </button>
+            </li>
+          </ul>
+        </div>
+        
+        {/* Right side */}
+        <div className="navbar-end">
+          <ConnectionStatus />
+        </div>
+      </div>
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={hideToast} />
+
+      {/* Error Display (if any persist) */}
+      {legacyError && (
+        <div className="alert alert-error shadow-lg mb-4">
+          <div>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{legacyError}</span>
+          </div>
+          <div className="flex-none">
+            <button className="btn btn-sm btn-ghost" onClick={clearErrors}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content wrapper with proper flex properties */}
+      <div className="flex-1">
+        {/* Main content based on current view */}
+        {currentView === 'setup' && (
+          useModern ? (
+            <ModernGameSetup
+              sqid={sqid}
+              gameTypes={gameTypes}
+              players={players}
+              onGameCreated={handleGameCreated}
+            />
+          ) : (
+            <GameSetup
+              players={players}
+              gameTypes={gameTypes}
+              onGameCreated={handleGameCreated}
+              onPlayerAdded={() => loadInitialData()}
+              sqid={sqid}
+            />
+          )
+        )}
+
+        {currentView === 'playing' && (
+          useModern ? (
+            <ModernGamePlay
+              sqid={sqid}
+              onGameFinalized={handleGameFinalized}
+              onBackToSetup={() => setCurrentView('setup')}
+            />
+          ) : (
+            <GamePlay
+              sqid={sqid}
+              setCurrentGame={() => {}} // Legacy compatibility
+              setCurrentView={setCurrentView}
+              backToSetup={() => setCurrentView('setup')}
+              onGameComplete={handleGameFinalized}
+            />
+          )
+        )}
+
+        {currentView === 'rivalry-stats' && (
+          <RivalryStats
+            rivalries={rivalries}
+            onBackToSetup={() => setCurrentView('setup')}
+            sqid={sqid}
+          />
+        )}
+
+        {currentView === 'admin' && (
+          <AdminPanel
+            onBackToSetup={() => setCurrentView('setup')}
+            sqid={sqid}
+            gameTypes={gameTypes}
+            setGameTypes={setGameTypes}
+            backToSetup={() => setCurrentView('setup')}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default ModernCardApp
