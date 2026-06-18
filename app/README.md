@@ -74,19 +74,27 @@ npm run preview
 
 ```text
 src/
-├── components/          # React components
-│   ├── AdminPanel.jsx   # Game type and player management
-│   ├── CardApp.jsx      # Main application container
-│   ├── ConnectionStatus.jsx # Connection indicator
-│   ├── GamePlay.jsx     # Active game interface
-│   ├── GameSetup.jsx    # Game initialization
-│   ├── PlayerCard.jsx   # Individual player score card
-│   └── RivalryStats.jsx # Rivalry statistics display
-├── contexts/            # React contexts
-│   └── ConnectionContext.jsx # Socket.IO connection management
-├── App.jsx             # Root application component
-├── main.jsx           # Application entry point
-└── index.css          # Global styles and Tailwind imports
+├── components/                  # React components
+│   ├── AdminPanel.jsx           # Game type and player management
+│   ├── ConnectionStatus.jsx     # Connection indicator
+│   ├── ErrorBoundary.jsx        # Top-level error boundary
+│   ├── LazyComponents.jsx       # Code-split admin/stats views
+│   ├── Loading.jsx              # Loading spinner
+│   ├── ModernCardApp.jsx        # Main application container
+│   ├── RivalryStats.jsx         # Rivalry statistics display
+│   ├── Toast.jsx                # Toast notifications
+│   └── modern/                  # Active game UI
+│       ├── GameLayout.jsx
+│       ├── GamePlay.jsx         # Active game interface
+│       ├── GameSetup.jsx        # Game initialization
+│       ├── PlayerCard.jsx       # Individual player score card
+│       └── ReorderablePlayerCard.jsx
+├── contexts/                    # React contexts
+│   ├── ConnectionContext.jsx    # Socket.IO connection management
+│   └── GameStateContext.jsx     # Game state management
+├── App.jsx                      # Root application component
+├── main.jsx                     # Application entry point
+└── index.css                    # Global styles and Tailwind imports
 ```
 
 ## Key Features
