@@ -34,6 +34,7 @@ class DatabaseManager {
     this.db = null;
     this.isInitialized = false;
     this.initPromise = null;
+    this.transactionQueue = Promise.resolve(); // serializes transaction()
   }
 
   initialize() {
@@ -140,21 +141,29 @@ class DatabaseManager {
     this.initPromise = null;
   }
 
-  // Transaction support
+  // Transaction support — serialized so a second transaction's BEGIN can
+  // never be issued before the first transaction's COMMIT/ROLLBACK has
+  // actually completed on the one shared connection.
   async transaction(callback) {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
-    try {
-      await this.run('BEGIN TRANSACTION');
-      const result = await callback(this);
-      await this.run('COMMIT');
-      return result;
-    } catch (error) {
-      await this.run('ROLLBACK');
-      throw error;
-    }
+    const run = async () => {
+      try {
+        await this.run('BEGIN TRANSACTION');
+        const result = await callback(this);
+        await this.run('COMMIT');
+        return result;
+      } catch (error) {
+        await this.run('ROLLBACK');
+        throw error;
+      }
+    };
+
+    const result = this.transactionQueue.then(run, run);
+    this.transactionQueue = result.then(() => {}, () => {});
+    return result;
   }
 
   // Health check
