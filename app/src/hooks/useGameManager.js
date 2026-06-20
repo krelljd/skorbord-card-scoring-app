@@ -3,6 +3,7 @@ import { useGameState, useGameDispatch, useGameActions } from '../contexts/GameS
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import gameAPI from '../services/gameAPI.js'
 import { shouldApplyRemoteTally } from './scoreSync.js'
+import { computeWinner } from './winnerLogic.js'
 
 /**
  * Modern hook that integrates game state management with API and WebSocket services
@@ -19,33 +20,7 @@ export function useGameManager(sqid) {
   
   // Update the function reference whenever the game state changes
   checkForWinnerRef.current = (stats) => {
-    if (!gameState.game || gameState.game.finalized) return
-
-    const winCondition = gameState.game.win_condition_value
-    const winConditionType = gameState.game.win_condition_type
-    let gameWinner = null
-
-    if (winConditionType === 'win') {
-      // Win condition: first player to reach the target score (must be positive)
-      const qualifiedPlayers = stats.filter(stat => stat.score >= winCondition && stat.score > 0)
-      if (qualifiedPlayers.length > 0) {
-        gameWinner = qualifiedPlayers.reduce((max, current) =>
-          current.score > max.score ? current : max
-        )
-      }
-    } else if (winConditionType === 'lose') {
-      // Lose condition: when someone hits the target, lowest score wins (must be positive)
-      const anyLoser = stats.some(stat => stat.score >= winCondition)
-      if (anyLoser) {
-        // Only consider positive scores for winning
-        const eligibleWinners = stats.filter(stat => stat.score > 0)
-        if (eligibleWinners.length > 0) {
-          gameWinner = eligibleWinners.reduce((min, current) =>
-            current.score < min.score ? current : min
-          )
-        }
-      }
-    }
+    const gameWinner = computeWinner(gameState.game, stats)
 
     // Update winner state if detected
     if (gameWinner && gameWinner.player_id !== gameState.winner?.player_id) {
@@ -95,12 +70,16 @@ export function useGameManager(sqid) {
           stats: statsData || []
         }
       })
-      
-      // Check for winner after loading game data and stats
-      if (gameData && statsData && statsData.length > 0) {
-        checkForWinner(statsData)
+
+      // Compute the winner from the data just fetched, not through
+      // checkForWinner: gameState.game (and therefore checkForWinnerRef)
+      // still reflects the *previous* game until the next render, so
+      // checkForWinner would observe stale state here.
+      const gameWinner = computeWinner(gameData, statsData || [])
+      if (gameWinner) {
+        dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
       }
-      
+
       if (typeof clearAllTallies === 'function') {
         clearAllTallies()
       }
@@ -110,7 +89,7 @@ export function useGameManager(sqid) {
     } finally {
       setLoading(false)
     }
-  }, [sqid, dispatch, setLoading, setError, checkForWinner]) // checkForWinner now has stable ref
+  }, [sqid, dispatch, setLoading, setError]) // checkForWinner no longer used here
 
   // Update player score (optimistic update + server sync)
   // Single timer per player for rolling 3-second window
@@ -319,6 +298,13 @@ export function useGameManager(sqid) {
                 stats: statsData
               }
             })
+
+            // Same stale-ref gap as loadGame: compute directly from the data
+            // just fetched, not through checkForWinner.
+            const gameWinner = computeWinner(gameData, statsData || [])
+            if (gameWinner) {
+              dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
+            }
           } catch (error) {
             console.error('Failed to refresh game data after dealer_changed:', error)
           }
