@@ -47,7 +47,7 @@ const AdminPanel = ({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to add game type')
+        throw new Error(errorData.error || 'Failed to add game type')
       }
 
       const result = await response.json()
@@ -60,7 +60,7 @@ const AdminPanel = ({
       })
       if (!favoriteRes.ok) {
         const errorData = await favoriteRes.json()
-        throw new Error(errorData.message || 'Failed to favorite new game type')
+        throw new Error(errorData.error || 'Failed to favorite new game type')
       }
       // Re-fetch game types to get correct is_favorited
       const gameTypesRes = await fetch(`/api/game_types?sqid=${encodeURIComponent(sqid)}`)
@@ -94,7 +94,7 @@ const AdminPanel = ({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to update favorite status')
+        throw new Error(errorData.error || 'Failed to update favorite status')
       }
 
       // After toggling, re-fetch game types to get correct is_favorited for this sqid
@@ -128,7 +128,7 @@ const AdminPanel = ({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to delete game type')
+        throw new Error(errorData.error || 'Failed to delete game type')
       }
 
       setGameTypes(prev => prev.filter(gt => gt.id !== gameTypeId))
