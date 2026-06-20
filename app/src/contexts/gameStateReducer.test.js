@@ -29,3 +29,26 @@ describe('GAME_STATS_SYNCED', () => {
     expect(next.glowingCards).toBe(baseState.glowingCards)
   })
 })
+
+describe('GAME_LOADED', () => {
+  it('resets winner, scoreTallies, and glowingCards even when prior state had values', () => {
+    const priorState = {
+      ...baseState,
+      winner: { player_id: 'p1', score: 11 }
+    }
+    const newGame = { id: 'g2', dealer_id: 'p2', finalized: false }
+    const newStats = [{ player_id: 'p2', score: 0 }]
+
+    const next = gameStateReducer(priorState, {
+      type: 'GAME_LOADED',
+      payload: { game: newGame, stats: newStats }
+    })
+
+    expect(next.winner).toBeNull()
+    expect(next.scoreTallies).toEqual({})
+    expect(next.glowingCards).toEqual(new Set())
+    expect(next.game).toBe(newGame)
+    expect(next.gameStats).toBe(newStats)
+    expect(next.dealer).toBe('p2')
+  })
+})

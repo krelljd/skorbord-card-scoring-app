@@ -9,6 +9,9 @@ export function gameStateReducer(state, action) {
         game: action.payload.game,
         gameStats: action.payload.stats || [],
         dealer: action.payload.game?.dealer_id || null, // Set dealer from game
+        winner: null,
+        scoreTallies: {},
+        glowingCards: new Set(),
         loading: false,
         error: null
       }
