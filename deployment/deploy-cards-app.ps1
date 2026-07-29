@@ -26,7 +26,7 @@ try {
     #    then install dependencies on the Pi in case package.json changed (node_modules itself
     #    isn't copied since native modules like sqlite3 must be built for the Pi's architecture).
     $backendArchive = "api-deploy.tar.gz"
-    tar --exclude='node_modules' --exclude='scoreboards.db*' --exclude='*.test.js' -czf $backendArchive -C ./api .
+    tar --exclude='node_modules' --exclude='scoreboards.db*' --exclude='cards-sqlite.db*' --exclude='*.test.js' -czf $backendArchive -C ./api .
     Assert-Success "tar backend files"
     scp $backendArchive pi@raspberrypi.local:~/skorbord-cards/
     Assert-Success "scp backend archive"
