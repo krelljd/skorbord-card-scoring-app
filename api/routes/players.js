@@ -6,6 +6,8 @@ import {
 import { createResponse, generateUUID } from '../utils/helpers.js';
 import { ValidationError, ConflictError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
+import { requireAdminPin, adminActionLimiter } from '../middleware/adminAuth.js';
+import { renamePlayer } from '../utils/playerAdmin.js';
 
 const router = express.Router({ mergeParams: true });
 
@@ -223,34 +225,15 @@ router.get('/:playerId', validatePlayerAccess, async (req, res, next) => {
 });
 
 /**
- * PUT /api/:sqid/players/:playerId - Update player details
+ * PUT /api/:sqid/players/:playerId - Update player details (admin only)
  */
-router.put('/:playerId', validatePlayerAccess, async (req, res, next) => {
+router.put('/:playerId', adminActionLimiter, requireAdminPin, validatePlayerAccess, async (req, res, next) => {
   try {
     const { playerId, sqid } = req.params;
     const { name } = req.body;
-    
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      throw new ValidationError('Player name is required');
-    }
-    
-    const trimmedName = name.trim();
-    if (trimmedName.length > 64) {
-      throw new ValidationError('Player name must be 64 characters or less');
-    }
-    
-    // Update player
-    await db.run(
-      'UPDATE players SET name = ? WHERE id = ?',
-      [trimmedName, playerId]
-    );
-    
-    // Get updated player data
-    const updatedPlayer = await db.get(
-      'SELECT id, sqid_id, name, created_at, color FROM players WHERE id = ?',
-      [playerId]
-    );
-    
+
+    const updatedPlayer = await renamePlayer(db, { sqidId: sqid, playerId, name });
+
     // Broadcast player updated event
     req.io?.to(`/sqid/${sqid}`).emit('player_updated', {
       type: 'player_updated',
@@ -258,7 +241,7 @@ router.put('/:playerId', validatePlayerAccess, async (req, res, next) => {
       sqidId: sqid,
       timestamp: new Date().toISOString()
     });
-    
+
     res.json(createResponse(true, updatedPlayer));
   } catch (error) {
     next(error);
