@@ -18,6 +18,7 @@ import playerRoutes from './routes/players.js';
 import gameRoutes from './routes/games.js';
 import statsRoutes from './routes/stats.js';
 import rivalryRoutes from './routes/rivalries.js';
+import adminRoutes from './routes/admin.js';
 import favoritesRoutes from './routes/favorites.js';
 
 // Import middleware
@@ -170,6 +171,7 @@ app.use('/api/:sqid/players', validateSquid, playerRoutes);
 app.use('/api/:sqid/games', validateSquid, gameRoutes);
 app.use('/api/:sqid/games/:gameId/stats', validateSquid, statsRoutes);
 app.use('/api/:sqid/rivalries', validateSquid, rivalryRoutes);
+app.use('/api/:sqid/admin', validateSquid, adminRoutes);
 app.use('/api/:sqid/game_types/:gameTypeId/favorite', validateSquid, favoritesRoutes);
 
 // Serve static files from frontend build
