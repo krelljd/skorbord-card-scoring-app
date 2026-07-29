@@ -31,6 +31,12 @@ const RivalryAdmin = ({ sqid, rivalries, setRivalries, backToStats }) => {
         method: 'POST',
         headers: { 'X-Admin-Pin': pinInput }
       })
+      if (response.status === 503) {
+        throw new Error('Admin features are not configured on the server')
+      }
+      if (response.status === 429) {
+        throw new Error('Too many attempts — try again in a few minutes')
+      }
       if (!response.ok) {
         throw new Error('Incorrect PIN')
       }

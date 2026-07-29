@@ -41,6 +41,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+
+// Trust only directly-connected loopback addresses (127.0.0.1/8, ::1) as
+// proxies. In production, cloudflared connects to this process over
+// localhost, so this lets Express take the X-Forwarded-For entry that
+// cloudflared appends (the real client IP) for req.ip / rate limiting,
+// without trusting arbitrary client-supplied XFF headers.
+app.set('trust proxy', 'loopback');
+
 const httpServer = createServer(app);
 
 // Configure Socket.IO

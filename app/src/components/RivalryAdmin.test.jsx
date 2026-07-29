@@ -42,6 +42,28 @@ describe('RivalryAdmin PIN gate', () => {
     expect(screen.queryByText('Alice vs Bob')).not.toBeInTheDocument()
   })
 
+  it('shows a configuration error when ADMIN_PIN is unset on the server (503)', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 503 })
+    render(<RivalryAdmin sqid="abcd" rivalries={rivalries} setRivalries={() => {}} backToStats={() => {}} />)
+
+    fireEvent.change(screen.getByPlaceholderText('Admin PIN'), { target: { value: '1234' } })
+    fireEvent.click(screen.getByText('Unlock'))
+
+    await waitFor(() => expect(screen.getByText('Admin features are not configured on the server')).toBeInTheDocument())
+    expect(screen.queryByText('Alice vs Bob')).not.toBeInTheDocument()
+  })
+
+  it('shows a rate-limit error when too many attempts have been made (429)', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 429 })
+    render(<RivalryAdmin sqid="abcd" rivalries={rivalries} setRivalries={() => {}} backToStats={() => {}} />)
+
+    fireEvent.change(screen.getByPlaceholderText('Admin PIN'), { target: { value: '1234' } })
+    fireEvent.click(screen.getByText('Unlock'))
+
+    await waitFor(() => expect(screen.getByText('Too many attempts — try again in a few minutes')).toBeInTheDocument())
+    expect(screen.queryByText('Alice vs Bob')).not.toBeInTheDocument()
+  })
+
   it('skips the gate when a pin is already cached in sessionStorage', () => {
     sessionStorage.setItem('skorbord_admin_pin_abcd', '1234')
     render(<RivalryAdmin sqid="abcd" rivalries={rivalries} setRivalries={() => {}} backToStats={() => {}} />)

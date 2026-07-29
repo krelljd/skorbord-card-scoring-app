@@ -194,6 +194,31 @@ These scripts will:
    npm install
    ```
 
+### 5.3 Configure Environment Variables on the Pi
+
+The deploy scripts (`deploy-cards-app.sh` / `deploy-cards-app.ps1`) never write `api/.env` on the Pi — it must be created/edited manually on the server and is not overwritten by deployments. Use `deployment/copy-api-env-from-server.ps1` to pull the current server `.env` down for reference before editing.
+
+1. **Set the rivalry admin PIN (required for the rivalry admin feature):**
+
+   ```sh
+   ssh pi@raspberrypi.local
+   nano ~/skorbord-cards/api/.env
+   ```
+
+   Add (or update):
+
+   ```sh
+   ADMIN_PIN=<a-reasonably-long-value>
+   ```
+
+   Use a PIN of at least 6+ characters — the admin endpoints are rate-limited to 10 attempts per 15 minutes, but a very short PIN (3-4 characters) could still plausibly be brute-forced across many windows. If `ADMIN_PIN` is unset, the admin endpoints respond with `503` and the rivalry admin UI is unusable.
+
+2. **Restart the backend service to pick up the change** (see [Section 9](#9-set-up-as-a-systemd-service) for the service definition):
+
+   ```sh
+   sudo systemctl restart skorbord-cards-app
+   ```
+
 ---
 
 ## 6. Run the Backend Server
