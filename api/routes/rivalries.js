@@ -3,6 +3,8 @@ import { createResponse } from '../utils/helpers.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
 import crypto from 'crypto';
+import { requireAdminPin, adminActionLimiter } from '../middleware/adminAuth.js';
+import { deleteRivalryCascade } from '../utils/rivalryAdmin.js';
 
 const router = express.Router({ mergeParams: true });
 
@@ -339,6 +341,28 @@ router.post('/', async (req, res, next) => {
     // Return the created rivalry
     const rivalry = await db.get('SELECT * FROM rivalries WHERE id = ?', [rivalryId]);
     res.json(createResponse(true, rivalry));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/:sqid/rivalries/:rivalryId - Delete a rivalry and all its
+ * games/stats (admin only)
+ */
+router.delete('/:rivalryId', adminActionLimiter, requireAdminPin, async (req, res, next) => {
+  try {
+    const { sqid, rivalryId } = req.params;
+    await deleteRivalryCascade(db, { sqidId: sqid, rivalryId });
+
+    req.io?.to(`/sqid/${sqid}`).emit('rivalry_deleted', {
+      type: 'rivalry_deleted',
+      rivalryId,
+      sqidId: sqid,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json(createResponse(true, { message: 'Rivalry deleted successfully' }));
   } catch (error) {
     next(error);
   }
