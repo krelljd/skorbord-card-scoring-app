@@ -136,4 +136,29 @@ describe('RivalryAdmin rename and delete', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Admin PIN')).toBeInTheDocument())
     expect(sessionStorage.getItem('skorbord_admin_pin_abcd')).toBeNull()
   })
+
+  it('scopes the rename error to the player being edited, not every rivalry card', async () => {
+    const multiRivalries = [
+      { id: 'riv1', player_names: ['Alice', 'Bob'], players: [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }] },
+      { id: 'riv2', player_names: ['Carol', 'Dave'], players: [{ id: 'p3', name: 'Carol' }, { id: 'p4', name: 'Dave' }] }
+    ]
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ success: false, error: 'Player name already exists in this Sqid' })
+    })
+
+    render(<RivalryAdmin sqid="abcd" rivalries={multiRivalries} setRivalries={() => {}} backToStats={() => {}} />)
+
+    fireEvent.click(screen.getAllByText('Rename')[0])
+    fireEvent.change(screen.getByDisplayValue('Alice'), { target: { value: 'Bob' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(screen.getByText('Player name already exists in this Sqid')).toBeInTheDocument())
+
+    expect(screen.getAllByText('Player name already exists in this Sqid')).toHaveLength(1)
+    const errorNode = screen.getByText('Player name already exists in this Sqid')
+    const riv2Card = screen.getByText('Carol vs Dave').closest('.card')
+    expect(riv2Card.contains(errorNode)).toBe(false)
+  })
 })

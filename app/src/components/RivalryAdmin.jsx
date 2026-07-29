@@ -169,39 +169,41 @@ const RivalryAdmin = ({ sqid, rivalries, setRivalries, backToStats }) => {
               </p>
               <div className="space-y-2">
                 {(rivalry.players || []).map(player => (
-                  <div key={player.id} className="flex items-center gap-2">
-                    {editingPlayerId === player.id ? (
-                      <>
-                        <input
-                          type="text"
-                          className="input input-bordered input-sm flex-1"
-                          value={draftName}
-                          onChange={(e) => setDraftName(e.target.value)}
-                        />
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={() => saveRename(player.id)}
-                          disabled={renameLoadingId === player.id || !draftName.trim()}
-                        >
-                          Save
-                        </button>
-                        <button className="btn btn-sm btn-ghost" onClick={() => setEditingPlayerId(null)}>
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1">{player.name}</span>
-                        <button className="btn btn-sm btn-outline" onClick={() => startEditing(player)}>
-                          Rename
-                        </button>
-                      </>
+                  <div key={player.id} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      {editingPlayerId === player.id ? (
+                        <>
+                          <input
+                            type="text"
+                            className="input input-bordered input-sm flex-1"
+                            value={draftName}
+                            onChange={(e) => setDraftName(e.target.value)}
+                          />
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => saveRename(player.id)}
+                            disabled={renameLoadingId === player.id || !draftName.trim()}
+                          >
+                            Save
+                          </button>
+                          <button className="btn btn-sm btn-ghost" onClick={() => setEditingPlayerId(null)}>
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1">{player.name}</span>
+                          <button className="btn btn-sm btn-outline" onClick={() => startEditing(player)}>
+                            Rename
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {editingPlayerId === player.id && renameError && (
+                      <div className="error-state"><p>{renameError}</p></div>
                     )}
                   </div>
                 ))}
-                {renameError && (
-                  <div className="error-state"><p>{renameError}</p></div>
-                )}
               </div>
 
               <div className="pt-2 border-t border-base-300">
