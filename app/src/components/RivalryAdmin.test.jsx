@@ -48,3 +48,92 @@ describe('RivalryAdmin PIN gate', () => {
     expect(screen.getByText('Alice vs Bob')).toBeInTheDocument()
   })
 })
+
+describe('RivalryAdmin rename and delete', () => {
+  const baseRivalries = [
+    { id: 'riv1', player_names: ['Alice', 'Bob'], players: [{ id: 'p1', name: 'Alice' }, { id: 'p2', name: 'Bob' }] }
+  ]
+
+  beforeEach(() => {
+    sessionStorage.setItem('skorbord_admin_pin_abcd', '1234')
+    global.fetch = vi.fn()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renames a player and reflects the new name in rivalry state', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, data: { id: 'p1', name: 'Alicia' } })
+    })
+    let latestRivalries = baseRivalries
+    const setRivalries = (updater) => { latestRivalries = updater(latestRivalries) }
+
+    render(<RivalryAdmin sqid="abcd" rivalries={baseRivalries} setRivalries={setRivalries} backToStats={() => {}} />)
+
+    fireEvent.click(screen.getAllByText('Rename')[0])
+    fireEvent.change(screen.getByDisplayValue('Alice'), { target: { value: 'Alicia' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/abcd/players/p1', expect.objectContaining({
+      method: 'PUT',
+      headers: expect.objectContaining({ 'X-Admin-Pin': '1234' })
+    })))
+    expect(latestRivalries[0].players[0].name).toBe('Alicia')
+  })
+
+  it('surfaces a duplicate-name conflict from the server', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ success: false, error: 'Player name already exists in this Sqid' })
+    })
+
+    render(<RivalryAdmin sqid="abcd" rivalries={baseRivalries} setRivalries={() => {}} backToStats={() => {}} />)
+
+    fireEvent.click(screen.getAllByText('Rename')[0])
+    fireEvent.change(screen.getByDisplayValue('Alice'), { target: { value: 'Bob' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(screen.getByText('Player name already exists in this Sqid')).toBeInTheDocument())
+  })
+
+  it('keeps delete disabled until the confirm text matches exactly, then deletes on click', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: true }) })
+    let latestRivalries = baseRivalries
+    const setRivalries = (updater) => { latestRivalries = updater(latestRivalries) }
+
+    render(<RivalryAdmin sqid="abcd" rivalries={baseRivalries} setRivalries={setRivalries} backToStats={() => {}} />)
+
+    fireEvent.click(screen.getByText('Delete Rivalry'))
+    const confirmInput = screen.getByRole('textbox')
+    const confirmButton = screen.getByText('Confirm Delete')
+    expect(confirmButton).toBeDisabled()
+
+    fireEvent.change(confirmInput, { target: { value: 'Alice vs Bob' } })
+    expect(confirmButton).not.toBeDisabled()
+
+    fireEvent.click(confirmButton)
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/abcd/rivalries/riv1', expect.objectContaining({
+      method: 'DELETE',
+      headers: { 'X-Admin-Pin': '1234' }
+    })))
+    expect(latestRivalries.find(r => r.id === 'riv1')).toBeUndefined()
+  })
+
+  it('clears the cached pin and re-shows the gate on a 403 from a mutating call', async () => {
+    global.fetch.mockResolvedValueOnce({ ok: false, status: 403 })
+
+    render(<RivalryAdmin sqid="abcd" rivalries={baseRivalries} setRivalries={() => {}} backToStats={() => {}} />)
+
+    fireEvent.click(screen.getAllByText('Rename')[0])
+    fireEvent.change(screen.getByDisplayValue('Alice'), { target: { value: 'Alicia' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => expect(screen.getByPlaceholderText('Admin PIN')).toBeInTheDocument())
+    expect(sessionStorage.getItem('skorbord_admin_pin_abcd')).toBeNull()
+  })
+})
