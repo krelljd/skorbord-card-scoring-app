@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { getPlayerTextColorClass, getPlayerTextColorClassByName } from '../utils/playerColors'
 
-const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) => {
+const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, onManage }) => {
   const [selectedRivalry, setSelectedRivalry] = useState(null)
   const [rivalryDetails, setRivalryDetails] = useState(null)
   const [error, setError] = useState(null)
@@ -300,13 +300,19 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup }) 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 mb-6">
-        <button 
+        <button
           className="btn btn-ghost btn-sm"
           onClick={backToSetup}
         >
           ← Back
         </button>
         <h2 className="text-xl font-bold">Rivalry Stats</h2>
+        <button
+          className="btn btn-outline btn-sm ml-auto"
+          onClick={onManage}
+        >
+          Manage
+        </button>
       </div>
       {rivalries.length === 0 ? (
         <div className="text-center py-8">

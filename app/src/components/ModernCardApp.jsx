@@ -12,7 +12,7 @@ import GamePlay from './modern/GamePlay.jsx'
 import ConnectionStatus from './ConnectionStatus.jsx'
 
 // Lazy-loaded admin components for better performance
-import { LazyAdminPanel, LazyRivalryStats } from './LazyComponents.jsx'
+import { LazyAdminPanel, LazyRivalryStats, LazyRivalryAdmin } from './LazyComponents.jsx'
 
 
 /**
@@ -40,7 +40,7 @@ const ModernCardApp = () => {
   } = useAppData(sqid)
   
   // App state - simplified with modern state management
-  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
+  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, rivalry-admin, admin
   const [loading, setLoading] = useState(true)
 
   // Initialize app when connection is ready and data is loaded
@@ -170,14 +170,24 @@ const ModernCardApp = () => {
               )}
               
               {currentView === 'rivalry-stats' && (
-                <LazyRivalryStats 
-                  sqid={sqid} 
+                <LazyRivalryStats
+                  sqid={sqid}
                   rivalries={rivalries}
                   players={players}
                   backToSetup={() => setCurrentView('setup')}
+                  onManage={() => setCurrentView('rivalry-admin')}
                 />
               )}
-              
+
+              {currentView === 'rivalry-admin' && (
+                <LazyRivalryAdmin
+                  sqid={sqid}
+                  rivalries={rivalries}
+                  setRivalries={setRivalries}
+                  backToStats={() => setCurrentView('rivalry-stats')}
+                />
+              )}
+
               {currentView === 'admin' && (
                 <LazyAdminPanel 
                   sqid={sqid} 
