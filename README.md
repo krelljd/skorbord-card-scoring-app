@@ -45,7 +45,7 @@ A modern, mobile-first card scoring application built with React, Express, and S
 
    ```bash
    git clone <repository-url>
-   cd skorbord-react-tailwindcss-daisyui
+   cd skorbord-card-scoring-app
    ```
 
 2. **Install Dependencies**
