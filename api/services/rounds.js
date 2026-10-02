@@ -16,7 +16,7 @@ import { computeWinner } from '../utils/winner.js';
  */
 
 const SELECT_GAME = `
-  SELECT g.*, gt.is_win_condition, gt.win_condition, gt.loss_condition
+  SELECT g.*, gt.is_win_condition, gt.win_condition, gt.loss_condition, gt.score_parts
   FROM games g
   JOIN game_types gt ON gt.id = g.game_type_id
   WHERE g.id = ?`;
@@ -155,11 +155,95 @@ function reconcileWinner(tx, game, confirmWinnerId = null) {
 function writeAudit(tx, entries, opId) {
   entries.forEach((entry, index) => {
     tx.run(
-      `INSERT INTO score_audit (game_id, round_id, player_id, kind, old_points, new_points, origin, op_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [entry.gameId, entry.roundId ?? null, entry.playerId, entry.kind, entry.oldPoints ?? null, entry.newPoints ?? null, entry.origin ?? null, index === 0 ? (opId ?? null) : null]
+      `INSERT INTO score_audit (game_id, round_id, player_id, kind, old_points, new_points, origin, op_id, part)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [entry.gameId, entry.roundId ?? null, entry.playerId, entry.kind, entry.oldPoints ?? null, entry.newPoints ?? null, entry.origin ?? null, index === 0 ? (opId ?? null) : null, entry.part ?? null]
     );
   });
+}
+
+// ---------------------------------------------------------------------------
+// Score parts (cribbage: play, hand, crib)
+// ---------------------------------------------------------------------------
+
+// Hands and cribs can score 0 to 29, but never these values.
+const IMPOSSIBLE_COUNT_SCORES = new Set([19, 25, 26, 27]);
+
+function gameParts(game) {
+  if (!game.score_parts) return null;
+  try {
+    const parts = JSON.parse(game.score_parts);
+    return Array.isArray(parts) && parts.length > 0 ? parts : null;
+  } catch {
+    return null;
+  }
+}
+
+function requirePart(game, part) {
+  if (part === undefined || part === null) return null;
+  const parts = gameParts(game);
+  if (!parts) throw new ValidationError('This game does not track score parts');
+  if (!parts.includes(part)) throw new ValidationError(`part must be one of: ${parts.join(', ')}`);
+  return part;
+}
+
+function validatePartValue(part, value) {
+  if (value < 0) throw new ValidationError(`${part} points cannot be negative`);
+  if (part === 'hand' || part === 'crib') {
+    if (value > 29 || IMPOSSIBLE_COUNT_SCORES.has(value)) {
+      throw new ValidationError(`${value} is not a possible ${part} score`);
+    }
+  }
+}
+
+/** A row's parts. A row with no parts yet counts its existing points as play. */
+function readParts(row) {
+  if (row.play_points === null && row.hand_points === null && row.crib_points === null) {
+    return { play: row.points, hand: 0, crib: 0 };
+  }
+  return { play: row.play_points ?? 0, hand: row.hand_points ?? 0, crib: row.crib_points ?? 0 };
+}
+
+const partTotal = (parts) => parts.play + parts.hand + parts.crib;
+
+/**
+ * Changes one part of a player's row in a round (add a delta or set a value) and
+ * keeps points equal to the sum of the parts.
+ * @returns {{ oldPoints: number, newPoints: number }}
+ */
+function writePart(tx, round, playerId, part, { delta, value, markEdited = false }) {
+  const row = tx.get(
+    'SELECT points, play_points, hand_points, crib_points FROM round_scores WHERE round_id = ? AND player_id = ?',
+    [round.id, playerId]
+  );
+  if (!row) throw new ValidationError('Player not found in this game');
+  if (part === 'crib' && round.dealer_id && round.dealer_id !== playerId) {
+    throw new ValidationError('Only the dealer scores the crib');
+  }
+
+  const parts = readParts(row);
+  parts[part] = delta !== undefined ? parts[part] + delta : value;
+  validatePartValue(part, parts[part]);
+
+  const points = partTotal(parts);
+  tx.run(
+    `UPDATE round_scores SET points = ?, play_points = ?, hand_points = ?, crib_points = ?, edited = CASE WHEN ? THEN 1 ELSE edited END, updated_at = ?
+     WHERE round_id = ? AND player_id = ?`,
+    [points, parts.play, parts.hand, parts.crib, markEdited ? 1 : 0, now(), round.id, playerId]
+  );
+  return { oldPoints: row.points, newPoints: points };
+}
+
+/**
+ * A plain total change (no part given) on a row that already has parts goes to
+ * play, so points still equals the sum of the parts. Rows without parts are left alone.
+ */
+function followTotalChange(tx, roundId, playerId, change) {
+  if (change === 0) return;
+  tx.run(
+    'UPDATE round_scores SET play_points = play_points + ? WHERE round_id = ? AND player_id = ? AND play_points IS NOT NULL',
+    [change, roundId, playerId]
+  );
 }
 
 function requireInteger(value, name) {
@@ -198,15 +282,18 @@ export async function getRoundState(db, gameId) {
     [gameId]
   );
   const scoreRows = await db.query(
-    'SELECT round_id, player_id, points, edited FROM round_scores WHERE game_id = ?',
+    'SELECT round_id, player_id, points, edited, play_points, hand_points, crib_points FROM round_scores WHERE game_id = ?',
     [gameId]
   );
 
-  const byRound = new Map(roundRows.map((r) => [r.id, { ...r, scores: {}, edited: {} }]));
+  const byRound = new Map(roundRows.map((r) => [r.id, { ...r, scores: {}, edited: {}, parts: {} }]));
   for (const row of scoreRows) {
     const round = byRound.get(row.round_id);
     if (!round) continue;
     round.scores[row.player_id] = row.points;
+    if (row.play_points !== null || row.hand_points !== null || row.crib_points !== null) {
+      round.parts[row.player_id] = { play: row.play_points ?? 0, hand: row.hand_points ?? 0, crib: row.crib_points ?? 0 };
+    }
     if (row.edited) round.edited[row.player_id] = true;
   }
 
@@ -227,7 +314,8 @@ export async function getRoundState(db, gameId) {
   const playerStates = players.map((p) => ({
     ...p,
     committed_total: committed[p.player_id] || 0,
-    draft: open ? (open.scores[p.player_id] || 0) : 0
+    draft: open ? (open.scores[p.player_id] || 0) : 0,
+    draft_parts: open?.parts[p.player_id] ?? null
   }));
 
   return {
@@ -236,6 +324,7 @@ export async function getRoundState(db, gameId) {
       finalized: Boolean(game.finalized),
       winner_id: game.winner_id ?? null,
       dealer_id: game.dealer_id ?? null,
+      score_parts: gameParts(game),
       win_condition_type: game.win_condition_type ?? (game.is_win_condition ? 'win' : 'lose'),
       win_condition_value: game.win_condition_value ?? (game.is_win_condition ? game.win_condition : game.loss_condition)
     },
@@ -265,10 +354,17 @@ export async function addToDraft(db, { gameId, entries, opId = null, origin = nu
 
     const round = ensureOpenRound(tx, game);
     const audit = [];
-    for (const { playerId, delta } of entries) {
+    for (const { playerId, delta, part: rawPart } of entries) {
+      const part = requirePart(game, rawPart);
+      if (part) {
+        const { oldPoints, newPoints } = writePart(tx, round, playerId, part, { delta });
+        audit.push({ gameId, roundId: round.id, playerId, kind: 'tap', oldPoints, newPoints, origin, part });
+        continue;
+      }
       const row = tx.get('SELECT points FROM round_scores WHERE round_id = ? AND player_id = ?', [round.id, playerId]);
       if (!row) throw new ValidationError('Player not found in this game');
       tx.run('UPDATE round_scores SET points = points + ?, updated_at = ? WHERE round_id = ? AND player_id = ?', [delta, now(), round.id, playerId]);
+      followTotalChange(tx, round.id, playerId, delta);
       audit.push({ gameId, roundId: round.id, playerId, kind: 'tap', oldPoints: row.points, newPoints: row.points + delta, origin });
     }
     recomputeTotals(tx, gameId);
@@ -281,16 +377,24 @@ export async function addToDraft(db, { gameId, entries, opId = null, origin = nu
  * Sets one player's draft for the open round. Give either points (this round's value)
  * or total (the player's overall total, from which the draft is derived).
  */
-export async function setDraft(db, { gameId, playerId, points = undefined, total = undefined, opId = null, origin = null }) {
+export async function setDraft(db, { gameId, playerId, points = undefined, total = undefined, part: rawPart = undefined, opId = null, origin = null }) {
   if (points === undefined && total === undefined) throw new ValidationError('points is required');
   if (points !== undefined) requireInteger(points, 'points');
   if (total !== undefined) requireInteger(total, 'total');
+  if ((rawPart ?? null) !== null && points === undefined) throw new ValidationError('A part needs points, not total');
 
   return db.transactionSync((tx) => {
     const game = loadEditableGame(tx, gameId);
     if (isDuplicate(tx, opId)) return { duplicate: true };
 
     const round = ensureOpenRound(tx, game);
+    const part = requirePart(game, rawPart);
+    if (part) {
+      const { oldPoints, newPoints } = writePart(tx, round, playerId, part, { value: points });
+      recomputeTotals(tx, gameId);
+      writeAudit(tx, [{ gameId, roundId: round.id, playerId, kind: points === 0 ? 'clear' : 'set', oldPoints, newPoints, origin, part }], opId);
+      return { duplicate: false, round_number: round.round_number };
+    }
     const row = tx.get('SELECT points FROM round_scores WHERE round_id = ? AND player_id = ?', [round.id, playerId]);
     if (!row) throw new ValidationError('Player not found in this game');
 
@@ -301,6 +405,7 @@ export async function setDraft(db, { gameId, playerId, points = undefined, total
     }
 
     tx.run('UPDATE round_scores SET points = ?, updated_at = ? WHERE round_id = ? AND player_id = ?', [newPoints, now(), round.id, playerId]);
+    followTotalChange(tx, round.id, playerId, newPoints - row.points);
     recomputeTotals(tx, gameId);
     writeAudit(tx, [{ gameId, roundId: round.id, playerId, kind: newPoints === 0 ? 'clear' : 'set', oldPoints: row.points, newPoints, origin }], opId);
     return { duplicate: false, round_number: round.round_number };
@@ -363,10 +468,22 @@ export async function undoCommit(db, { gameId, opId = null, origin = null }) {
     if (!last) throw new ConflictError('There is no saved round to undo');
     if (last.is_backfill) throw new ConflictError('Rounds from before round tracking cannot be reopened');
 
-    const draft = tx.all('SELECT player_id, points FROM round_scores WHERE round_id = ?', [open.id]);
-    for (const { player_id: playerId, points } of draft) {
-      if (points !== 0) {
-        tx.run('UPDATE round_scores SET points = points + ?, updated_at = ? WHERE round_id = ? AND player_id = ?', [points, now(), last.id, playerId]);
+    const draft = tx.all('SELECT player_id, points, play_points, hand_points, crib_points FROM round_scores WHERE round_id = ?', [open.id]);
+    if (draft.some((d) => d.crib_points)) {
+      throw new ConflictError('Clear the crib points in the current round before undoing the last round');
+    }
+    for (const d of draft) {
+      if (d.points === 0 && d.play_points === null) continue;
+      const target = tx.get('SELECT points, play_points, hand_points, crib_points FROM round_scores WHERE round_id = ? AND player_id = ?', [last.id, d.player_id]);
+      if (target && (d.play_points !== null || target.play_points !== null)) {
+        const a = readParts(d);
+        const b = readParts(target);
+        tx.run(
+          'UPDATE round_scores SET points = ?, play_points = ?, hand_points = ?, crib_points = ?, updated_at = ? WHERE round_id = ? AND player_id = ?',
+          [target.points + d.points, a.play + b.play, a.hand + b.hand, a.crib + b.crib, now(), last.id, d.player_id]
+        );
+      } else if (d.points !== 0) {
+        tx.run('UPDATE round_scores SET points = points + ?, updated_at = ? WHERE round_id = ? AND player_id = ?', [d.points, now(), last.id, d.player_id]);
       }
     }
     tx.run('DELETE FROM rounds WHERE id = ?', [open.id]);
@@ -392,7 +509,7 @@ export async function undoCommit(db, { gameId, opId = null, origin = null }) {
  * Corrects one player's points in a saved round. expectedRevision (optional)
  * rejects the edit if someone else changed that round since it was read.
  */
-export async function editRound(db, { gameId, roundNumber, playerId, points, expectedRevision = undefined, opId = null, origin = null }) {
+export async function editRound(db, { gameId, roundNumber, playerId, points, part: rawPart = undefined, expectedRevision = undefined, opId = null, origin = null }) {
   requireInteger(roundNumber, 'roundNumber');
   requireInteger(points, 'points');
   if (expectedRevision !== undefined) requireInteger(expectedRevision, 'expectedRevision');
@@ -408,15 +525,23 @@ export async function editRound(db, { gameId, roundNumber, playerId, points, exp
       throw new ConflictError('This round was changed by someone else. Reload and try again');
     }
 
-    const row = tx.get('SELECT points FROM round_scores WHERE round_id = ? AND player_id = ?', [round.id, playerId]);
-    if (!row) throw new ValidationError('Player not found in this game');
-
-    tx.run('UPDATE round_scores SET points = ?, edited = 1, updated_at = ? WHERE round_id = ? AND player_id = ?', [points, now(), round.id, playerId]);
+    const part = requirePart(game, rawPart);
+    let oldPoints;
+    let newPoints = points;
+    if (part) {
+      ({ oldPoints, newPoints } = writePart(tx, round, playerId, part, { value: points, markEdited: true }));
+    } else {
+      const row = tx.get('SELECT points FROM round_scores WHERE round_id = ? AND player_id = ?', [round.id, playerId]);
+      if (!row) throw new ValidationError('Player not found in this game');
+      oldPoints = row.points;
+      tx.run('UPDATE round_scores SET points = ?, edited = 1, updated_at = ? WHERE round_id = ? AND player_id = ?', [points, now(), round.id, playerId]);
+      followTotalChange(tx, round.id, playerId, points - row.points);
+    }
     tx.run('UPDATE rounds SET revision = revision + 1 WHERE id = ?', [round.id]);
 
     recomputeTotals(tx, gameId);
     reconcileWinner(tx, game);
-    writeAudit(tx, [{ gameId, roundId: round.id, playerId, kind: 'edit', oldPoints: row.points, newPoints: points, origin }], opId);
+    writeAudit(tx, [{ gameId, roundId: round.id, playerId, kind: 'edit', oldPoints, newPoints, origin, part }], opId);
     return { duplicate: false, round_number: roundNumber };
   });
 }

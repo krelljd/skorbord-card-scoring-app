@@ -257,3 +257,100 @@ test('the audit log records each change with old and new points', async () => {
   assert.deepEqual(rows.filter((r) => r.kind === 'commit').map((r) => [r.player_id, r.new_points]), [['p1', 5], ['p2', 0]])
   assert.deepEqual(rows.at(-1), { kind: 'edit', player_id: 'p1', old_points: 5, new_points: 6, origin: null })
 })
+
+// ---------------------------------------------------------------------------
+// Score parts (cribbage play, hand, crib)
+// ---------------------------------------------------------------------------
+
+const partsOf = async (gameId, roundNumber, playerId) =>
+  db.get(
+    `SELECT rs.points, rs.play_points, rs.hand_points, rs.crib_points FROM round_scores rs
+     JOIN rounds r ON r.id = rs.round_id WHERE r.game_id = ? AND r.round_number = ? AND rs.player_id = ?`,
+    [gameId, roundNumber, playerId]
+  )
+
+test('part taps and sets keep points equal to play + hand + crib', async () => {
+  const g = await newGame()
+  await rounds.addToDraft(db, { gameId: g, entries: [{ playerId: 'p1', delta: 2, part: 'play' }, { playerId: 'p1', delta: 1, part: 'play' }] })
+  await rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 12, part: 'hand' })
+  await rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 8, part: 'crib' }) // p1 deals round 1
+  assert.deepEqual(await partsOf(g, 1, 'p1'), { points: 23, play_points: 3, hand_points: 12, crib_points: 8 })
+  assert.equal(await total(g, 'p1'), 23)
+  const state = await rounds.getRoundState(db, g)
+  assert.deepEqual(state.game.score_parts, ['play', 'hand', 'crib'])
+  assert.deepEqual(player(state, 'p1').draft_parts, { play: 3, hand: 12, crib: 8 })
+  assert.equal(player(state, 'p2').draft_parts, null)
+})
+
+test('only the dealer scores the crib', async () => {
+  const g = await newGame()
+  await assert.rejects(rounds.setDraft(db, { gameId: g, playerId: 'p2', points: 4, part: 'crib' }), /dealer/)
+  assert.equal(await total(g, 'p2'), 0)
+})
+
+test('hand and crib reject impossible scores; no part is negative', async () => {
+  const g = await newGame()
+  for (const value of [19, 25, 26, 27, 30]) {
+    await assert.rejects(rounds.setDraft(db, { gameId: g, playerId: 'p1', points: value, part: 'hand' }), /not a possible hand score/)
+  }
+  await rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 29, part: 'hand' })
+  await assert.rejects(rounds.addToDraft(db, { gameId: g, entries: [{ playerId: 'p1', delta: -1, part: 'play' }] }), /negative/)
+  assert.equal(await total(g, 'p1'), 29)
+})
+
+test('an unknown part, or a part on a game without parts, is rejected', async () => {
+  const g = await newGame()
+  await assert.rejects(rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 1, part: 'bonus' }), /part must be one of/)
+  await db.run("UPDATE games SET game_type_id = 'pitch' WHERE id = ?", [g])
+  await assert.rejects(rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 1, part: 'play' }), /does not track score parts/)
+  await db.run("UPDATE games SET game_type_id = 'cribbage' WHERE id = ?", [g])
+})
+
+test('a total change without a part goes to play when the row has parts, and leaves a parts-free row alone', async () => {
+  const g = await newGame()
+  await rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 7 }) // no parts yet
+  assert.deepEqual(await partsOf(g, 1, 'p1'), { points: 7, play_points: null, hand_points: null, crib_points: null })
+
+  await rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 10, part: 'hand' }) // existing 7 becomes play
+  assert.deepEqual(await partsOf(g, 1, 'p1'), { points: 17, play_points: 7, hand_points: 10, crib_points: 0 })
+
+  await rounds.addToDraft(db, { gameId: g, entries: [{ playerId: 'p1', delta: 2 }] })
+  assert.deepEqual(await partsOf(g, 1, 'p1'), { points: 19, play_points: 9, hand_points: 10, crib_points: 0 })
+})
+
+test('committing keeps parts, history edits change one part, and undo merges parts back', async () => {
+  const g = await newGame()
+  await rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 6, part: 'play' })
+  await rounds.setDraft(db, { gameId: g, playerId: 'p2', points: 14, part: 'hand' })
+  await rounds.commitRound(db, { gameId: g })
+
+  let state = await rounds.getRoundState(db, g)
+  assert.deepEqual(state.rounds[0].parts.p2, { play: 0, hand: 14, crib: 0 })
+  assert.equal(state.rounds[0].dealer_id, 'p1')
+
+  await rounds.editRound(db, { gameId: g, roundNumber: 1, playerId: 'p2', points: 16, part: 'hand' })
+  assert.deepEqual(await partsOf(g, 1, 'p2'), { points: 16, play_points: 0, hand_points: 16, crib_points: 0 })
+  assert.equal(await total(g, 'p2'), 16)
+  assert.equal((await db.get('SELECT edited FROM round_scores WHERE round_id = ? AND player_id = ?', [`${g}-r1`, 'p2'])).edited, 1)
+
+  // p2 deals round 2: tap play, then undo the commit
+  await rounds.addToDraft(db, { gameId: g, entries: [{ playerId: 'p2', delta: 3, part: 'play' }] })
+  await rounds.undoCommit(db, { gameId: g })
+  assert.deepEqual(await partsOf(g, 1, 'p2'), { points: 19, play_points: 3, hand_points: 16, crib_points: 0 })
+  assert.equal(await total(g, 'p2'), 19)
+  assert.deepEqual(await findTotalMismatches(db), [])
+})
+
+test('undo is refused while the new round holds crib points', async () => {
+  const g = await newGame()
+  await rounds.commitRound(db, { gameId: g })
+  await rounds.setDraft(db, { gameId: g, playerId: 'p2', points: 6, part: 'crib' }) // p2 deals round 2
+  await assert.rejects(rounds.undoCommit(db, { gameId: g }), /crib/)
+})
+
+test('the audit trail records which part changed', async () => {
+  const g = await newGame()
+  await rounds.setDraft(db, { gameId: g, playerId: 'p1', points: 12, part: 'hand' })
+  const entry = await db.get('SELECT kind, part, new_points FROM score_audit WHERE game_id = ? ORDER BY id DESC LIMIT 1', [g])
+  assert.deepEqual(entry, { kind: 'set', part: 'hand', new_points: 12 })
+})

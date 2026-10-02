@@ -12,6 +12,8 @@ import { LoadingSpinner } from '../Loading.jsx'
 import ReorderablePlayerCard from './ReorderablePlayerCard.jsx'
 import NumberPad from './NumberPad.jsx'
 import RoundHistory from './RoundHistory.jsx'
+import PartSheet from './PartSheet.jsx'
+import { recapLine, noHandPoints } from '../../utils/cribbage.js'
 import { computeWinner } from '../../hooks/winnerLogic.js'
 
 const UNDO_WINDOW_MS = 5000
@@ -42,6 +44,8 @@ const GamePlay = ({
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [dealerModalOpen, setDealerModalOpen] = useState(false)
   const [padPlayerId, setPadPlayerId] = useState(null)
+  const [totalOnly, setTotalOnly] = useState(false) // plain total pad instead of the part sheet
+  const [emptyHandPrompt, setEmptyHandPrompt] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [winnerPrompt, setWinnerPrompt] = useState(null)
   const [undoable, setUndoable] = useState(null) // { roundNumber } for a few seconds after saving
@@ -90,17 +94,20 @@ const GamePlay = ({
     })
   }, [gameManager.gameStats])
 
+  // Round state from the server. Cribbage games split each round into play, hand and crib.
+  const { roundState } = gameManager
+  const tracksParts = Array.isArray(roundState?.game?.score_parts) && roundState.game.score_parts.length > 0
+
   // Handle score updates with optimistic UI and error recovery
   const handleScoreUpdate = useCallback(async (playerId, change) => {
     try {
-      await gameManager.updatePlayerScore(playerId, change)
+      await gameManager.updatePlayerScore(playerId, change, tracksParts ? 'play' : undefined)
     } catch (error) {
       showError(`Failed to update score: ${parseError(error).message}`)
     }
-  }, [gameManager, showError])
+  }, [gameManager, showError, tracksParts])
 
   // Round state from the server: per-player draft for the open round
-  const { roundState } = gameManager
   const draftByPlayer = useMemo(() => {
     const map = {}
     for (const p of roundState?.players || []) map[p.player_id] = p.draft
@@ -117,6 +124,7 @@ const GamePlay = ({
   }, [roundState])
 
   const openPad = useCallback((playerId) => {
+    setTotalOnly(false)
     if (!gameManager.isConnected) {
       showError('Reconnect to type an exact value. Taps still work offline.')
       return
@@ -146,13 +154,18 @@ const GamePlay = ({
     }
   }, [gameManager, showError])
 
-  const handleNextRound = useCallback(() => {
+  const handleNextRound = useCallback((skipEmptyHandCheck = false) => {
+    if (tracksParts && skipEmptyHandCheck !== true && noHandPoints(roundState.players)) {
+      setEmptyHandPrompt(true)
+      return
+    }
+    setEmptyHandPrompt(false)
     if (prospectiveWinner && prospectiveWinner.player_id !== gameState.winner?.player_id) {
       setWinnerPrompt(prospectiveWinner.player_id)
       return
     }
     saveRound()
-  }, [prospectiveWinner, gameState.winner, saveRound])
+  }, [tracksParts, roundState, prospectiveWinner, gameState.winner, saveRound])
 
   const handleUndoRound = useCallback(async () => {
     clearTimeout(undoTimer.current)
@@ -164,9 +177,9 @@ const GamePlay = ({
     }
   }, [gameManager, showError])
 
-  const handleEditRound = useCallback(async (roundNumber, playerId, points, revision) => {
+  const handleEditRound = useCallback(async (roundNumber, playerId, points, revision, part) => {
     try {
-      await gameManager.editRound(roundNumber, playerId, points, revision)
+      await gameManager.editRound(roundNumber, playerId, points, revision, part)
     } catch (error) {
       showError(`Failed to correct score: ${parseError(error).message}`)
     }
@@ -425,6 +438,7 @@ const GamePlay = ({
                       return handleScoreUpdate(playerId, change);
                     }}
                     isDealer={gameManager.game?.dealer_id === playerStat.player_id}
+                    showCrib={tracksParts}
                     isWinner={isWinner}
                     onDealerClick={cycleDealer}
                     disabled={isFinalized || gameManager.loading || gameState.isReorderMode}
@@ -442,6 +456,12 @@ const GamePlay = ({
         </div>
       )}
 
+      {tracksParts && !isFinalized && roundState && sortedPlayers.length > 0 && !gameState.isReorderMode && (
+        <p className="text-center text-sm text-base-content/70" data-testid="round-recap">
+          {recapLine(roundState.players, roundState.open_round)}
+        </p>
+      )}
+
       {/* Round bar: save the round, see history */}
       {!isFinalized && sortedPlayers.length > 0 && !gameState.isReorderMode && (
         <div className="sticky bottom-3 z-20 flex gap-2">
@@ -454,7 +474,7 @@ const GamePlay = ({
           </button>
           <button
             className="btn btn-primary flex-1"
-            onClick={handleNextRound}
+            onClick={() => handleNextRound()}
             disabled={!roundState || !gameManager.isConnected || gameManager.pendingTaps > 0}
           >
             Next round{roundState?.open_round ? ` (${roundState.open_round})` : ''}
@@ -476,7 +496,42 @@ const GamePlay = ({
         </div>
       )}
 
-      {padPlayerId && (
+      {padPlayerId && tracksParts && !totalOnly && (() => {
+        const p = roundState.players.find(x => x.player_id === padPlayerId)
+        return (
+          <PartSheet
+            title="Points this round"
+            subtitle={p?.player_name}
+            parts={p?.draft_parts ?? { play: p?.draft || 0, hand: 0, crib: 0 }}
+            isDealer={roundState.game.dealer_id === padPlayerId}
+            onAddPlay={(delta) => handleScoreUpdate(padPlayerId, delta)}
+            onSetPart={async (part, value) => {
+              try {
+                await gameManager.setDraftPoints(padPlayerId, value, part)
+              } catch (error) {
+                showError(`Failed to set ${part} points: ${parseError(error).message}`)
+              }
+            }}
+            onTotalOnly={() => setTotalOnly(true)}
+            onClose={() => setPadPlayerId(null)}
+          />
+        )
+      })()}
+
+      {emptyHandPrompt && (
+        <div className="modal modal-open" role="dialog" aria-label="No hand points">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Save without any hand points?</h3>
+            <p className="py-2">Nobody has hand points this round. That is rare, so check before saving.</p>
+            <div className="modal-action">
+              <button className="btn" onClick={() => setEmptyHandPrompt(false)}>Go back</button>
+              <button className="btn btn-primary" onClick={() => handleNextRound(true)}>Save anyway</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {padPlayerId && (!tracksParts || totalOnly) && (
         <NumberPad
           title="Points this round"
           subtitle={sortedPlayers.find(p => p.player_id === padPlayerId)?.player_name}

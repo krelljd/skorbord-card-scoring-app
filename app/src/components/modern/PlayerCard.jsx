@@ -36,6 +36,7 @@ const getPlayerBgColor = (index) => {
  * @param {Object} player - Player object with id, name, score properties
  * @param {number} playerIndex - Index for color assignment (defaults to 0)
  * @param {boolean} isDealer - Whether this player is the dealer
+ * @param {boolean} showCrib - Mark the dealer as owner of this round's crib (cribbage)
  * @param {boolean} isWinner - Whether this player is the winner
  * @param {number} draft - Points entered so far in the open round
  * @param {Function} onDraftClick - Opens the number pad for this player's round points
@@ -47,6 +48,7 @@ const PlayerCard = forwardRef(({
   player,
   playerIndex = 0, // Default to 0 if not provided
   isDealer,
+  showCrib = false,
   isWinner,
   draft = 0,
   onDraftClick,
@@ -162,7 +164,7 @@ const PlayerCard = forwardRef(({
                 title="Click to cycle to next dealer"
                 aria-label="Cycle to next dealer"
               >
-                🃏 Dealer
+                🃏 Dealer{showCrib ? ' · Crib' : ''}
               </button>
             )}
             {isWinner && (

@@ -82,14 +82,14 @@ router.get('/', validateGameAccess, async (req, res, next) => {
 
 /**
  * POST /rounds/current/scores - Add to the draft.
- * Body: { playerId, delta } or { entries: [{ playerId, delta }] }, plus optional opId, socketId.
+ * Body: { playerId, delta, part? } or { entries: [{ playerId, delta, part? }] }, plus optional opId, socketId.
  */
 router.post('/current/scores', validateGameAccess, scoreLimiter.middleware, async (req, res, next) => {
   try {
     const { gameId } = req.params;
     const entries = Array.isArray(req.body.entries)
       ? req.body.entries
-      : [{ playerId: req.body.playerId, delta: req.body.delta }];
+      : [{ playerId: req.body.playerId, delta: req.body.delta, part: req.body.part }];
     for (const entry of entries) requirePlayerId(entry.playerId);
 
     const result = await addToDraft(db, {
@@ -108,7 +108,7 @@ router.post('/current/scores', validateGameAccess, scoreLimiter.middleware, asyn
 
 /**
  * PUT /rounds/current/scores/:playerId - Set a player's draft for the open round.
- * Body: { points } or { total }, plus optional opId, socketId.
+ * Body: { points, part? } or { total }, plus optional opId, socketId.
  */
 router.put('/current/scores/:playerId', validateGameAccess, scoreLimiter.middleware, async (req, res, next) => {
   try {
@@ -120,6 +120,7 @@ router.put('/current/scores/:playerId', validateGameAccess, scoreLimiter.middlew
       playerId,
       points: req.body.points,
       total: req.body.total,
+      part: req.body.part,
       opId: optionalOpId(req.body),
       origin: req.body.socketId || null
     });
@@ -185,7 +186,7 @@ router.post('/undo-commit', validateGameAccess, async (req, res, next) => {
 
 /**
  * PUT /rounds/:roundNumber/scores/:playerId - Correct a saved round.
- * Body: { points, expectedRevision?, opId?, socketId? }
+ * Body: { points, part?, expectedRevision?, opId?, socketId? }
  */
 router.put('/:roundNumber/scores/:playerId', validateGameAccess, scoreLimiter.middleware, async (req, res, next) => {
   try {
@@ -197,6 +198,7 @@ router.put('/:roundNumber/scores/:playerId', validateGameAccess, scoreLimiter.mi
       roundNumber: Number(req.params.roundNumber),
       playerId,
       points: req.body.points,
+      part: req.body.part,
       expectedRevision: req.body.expectedRevision,
       opId: optionalOpId(req.body),
       origin: req.body.socketId || null

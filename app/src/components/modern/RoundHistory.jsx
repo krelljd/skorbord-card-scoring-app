@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import NumberPad from './NumberPad.jsx'
+import PartSheet from './PartSheet.jsx'
+import { PARTS, PART_LABELS } from '../../utils/cribbage.js'
 
 /**
  * Score history: one row per saved round, one column per player, with the
@@ -46,8 +48,10 @@ const TotalsChart = ({ players, rows }) => {
 
 const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
   const [editing, setEditing] = useState(null)
+  const [showParts, setShowParts] = useState(false)
+  const tracksParts = Array.isArray(roundState?.game?.score_parts) && roundState.game.score_parts.length > 0
 
-  const { players, rows, totals, averages } = useMemo(() => {
+  const { players, rows, totals, averages, partAverages } = useMemo(() => {
     const players = roundState?.players || []
     const running = {}
     const rows = (roundState?.rounds || [])
@@ -70,7 +74,18 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
     const averages = players.map((p, i) =>
       real.length ? Math.round((real.reduce((sum, r) => sum + r.cells[i].points, 0) / real.length) * 10) / 10 : null
     )
-    return { players, rows, totals, averages }
+    // Average per part over rounds that have parts (older rounds are skipped).
+    // The crib average only counts rounds the player dealt.
+    const partAverages = PARTS.map((part) =>
+      players.map((p) => {
+        const tracked = real.filter((r) => r.round.parts?.[p.player_id])
+        const list = part === 'crib' ? tracked.filter((r) => r.round.dealer_id === p.player_id) : tracked
+        if (list.length === 0) return null
+        const sum = list.reduce((total, r) => total + r.round.parts[p.player_id][part], 0)
+        return Math.round((sum / list.length) * 10) / 10
+      })
+    )
+    return { players, rows, totals, averages, partAverages }
   }, [roundState])
 
   const save = async (points) => {
@@ -79,14 +94,32 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
     await onEdit(target.round.round_number, target.playerId, points, target.round.revision)
   }
 
+  // The sheet reads the live round, since each correction bumps its revision
+  const liveRound = editing ? (roundState?.rounds || []).find((r) => r.round_number === editing.round.round_number) : null
+  const sheetParts = editing && showParts ? liveRound?.parts?.[editing.playerId] : null
+
   return (
     <div className="modal modal-open" role="dialog" aria-label="Score history">
       <div className="modal-box max-w-3xl">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-lg">Score history</h3>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            {tracksParts && (
+              <label className="label cursor-pointer gap-2 p-0">
+                <span className="text-sm">Show parts</span>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-sm"
+                  checked={showParts}
+                  onChange={(e) => setShowParts(e.target.checked)}
+                  aria-label="Show parts"
+                />
+              </label>
+            )}
+            <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>
+              Close
+            </button>
+          </div>
         </div>
 
         {rows.length === 0 ? (
@@ -121,6 +154,13 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
                             {cell.points}
                             {cell.edited && <span className="text-warning" title="Corrected"> •</span>}
                           </span>
+                          {showParts && round.parts?.[cell.playerId] && (
+                            <span className="text-xs text-base-content/70" data-testid="cell-parts">
+                              {PARTS.filter((k) => k !== 'crib' || round.dealer_id === cell.playerId)
+                                .map((k) => round.parts[cell.playerId][k])
+                                .join(' / ')}
+                            </span>
+                          )}
                           <span className="text-xs text-base-content/50">{cell.running}</span>
                         </button>
                       </td>
@@ -135,6 +175,14 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
                     <th key={players[i].player_id}>{t}</th>
                   ))}
                 </tr>
+                {showParts && partAverages.map((avgs, i) => avgs.some((a) => a !== null) && (
+                  <tr key={PARTS[i]} className="font-normal">
+                    <th className="text-left font-normal">Avg {PART_LABELS[PARTS[i]].toLowerCase()}</th>
+                    {avgs.map((a, j) => (
+                      <td key={players[j].player_id}>{a ?? '–'}</td>
+                    ))}
+                  </tr>
+                ))}
                 {averages.some((a) => a !== null) && (
                   <tr className="font-normal">
                     <th className="text-left font-normal">Avg per round</th>
@@ -155,7 +203,19 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
         )}
       </div>
 
-      {editing && (
+      {editing && sheetParts && (
+        <PartSheet
+          title="Correct points"
+          subtitle={`Round ${editing.round.round_number} · ${players.find((p) => p.player_id === editing.playerId)?.player_name}`}
+          parts={sheetParts}
+          isDealer={liveRound.dealer_id === editing.playerId}
+          quickPlay={false}
+          onSetPart={(part, value) => onEdit(liveRound.round_number, editing.playerId, value, liveRound.revision, part)}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editing && !sheetParts && (
         <NumberPad
           title="Correct score"
           subtitle={`Round ${editing.round.is_backfill ? '(earlier)' : editing.round.round_number} · ${players.find((p) => p.player_id === editing.playerId)?.player_name}`}

@@ -387,6 +387,11 @@ router.put('/:gameId', validateGameAccess, validateUpdateGame, async (req, res, 
       params
     );
     
+    // The open round follows a hand-picked dealer, since the dealer scores the crib
+    if (dealer_id !== undefined) {
+      await db.run("UPDATE rounds SET dealer_id = ? WHERE game_id = ? AND status = 'open'", [dealer_id, gameInfo.id]);
+    }
+
     // If finalizing, update rivalry stats
     if (finalized && !gameInfo.finalized) {
       await updateRivalryStats(gameInfo.sqid_id, gameInfo.game_type_id, gameInfo.id);

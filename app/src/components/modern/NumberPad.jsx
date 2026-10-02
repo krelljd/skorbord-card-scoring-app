@@ -6,7 +6,7 @@ const MAX_DIGITS = 3
  * Number pad for typing an exact point value (this round's draft, or a past
  * round's cell). Returns an integer through onSave.
  */
-const NumberPad = ({ title, subtitle, initial = 0, onSave, onCancel }) => {
+const NumberPad = ({ title, subtitle, initial = 0, onSave, onCancel, isValid = null, invalidHint = 'Not a possible score', allowNegative = true }) => {
   const [negative, setNegative] = useState(initial < 0)
   const [digits, setDigits] = useState(initial === 0 ? '' : String(Math.abs(initial)))
 
@@ -14,6 +14,7 @@ const NumberPad = ({ title, subtitle, initial = 0, onSave, onCancel }) => {
   const untouched = useRef(initial !== 0)
 
   const value = (digits === '' ? 0 : Number(digits)) * (negative ? -1 : 1)
+  const valid = isValid ? isValid(value) : true
 
   const press = useCallback((d) => {
     const base = untouched.current ? '' : null
@@ -45,6 +46,12 @@ const NumberPad = ({ title, subtitle, initial = 0, onSave, onCancel }) => {
           {value}
         </div>
 
+        {!valid && (
+          <p className="text-center text-sm text-error" role="alert">
+            {invalidHint}
+          </p>
+        )}
+
         <div className="grid grid-cols-3 gap-2">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
             <button key={d} type="button" className="btn btn-lg" onClick={() => press(d)}>
@@ -53,6 +60,7 @@ const NumberPad = ({ title, subtitle, initial = 0, onSave, onCancel }) => {
           ))}
           <button
             type="button"
+            disabled={!allowNegative}
             className={`btn btn-lg ${negative ? 'btn-error' : ''}`}
             onClick={() => setNegative((n) => !n)}
             aria-pressed={negative}
@@ -72,7 +80,7 @@ const NumberPad = ({ title, subtitle, initial = 0, onSave, onCancel }) => {
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => onSave(value)}>
+          <button type="button" className="btn btn-primary" disabled={!valid} onClick={() => onSave(value)}>
             Save
           </button>
         </div>

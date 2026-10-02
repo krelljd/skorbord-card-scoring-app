@@ -84,3 +84,29 @@ describe('round state', () => {
     expect(next.gameStats[0].score).toBe(11)
   })
 })
+
+describe('DRAFT_ADJUSTED with parts', () => {
+  const state = {
+    ...baseState,
+    gameStats: [{ player_id: 'p1', score: 10 }],
+    roundState: { players: [{ player_id: 'p1', draft: 4, draft_parts: { play: 1, hand: 3, crib: 0 } }, { player_id: 'p2', draft: 5, draft_parts: null }] }
+  }
+
+  it('moves the named part and the draft together', () => {
+    const next = gameStateReducer(state, { type: 'DRAFT_ADJUSTED', payload: { playerId: 'p1', change: 2, part: 'play' } })
+    expect(next.roundState.players[0]).toMatchObject({ draft: 6, draft_parts: { play: 3, hand: 3, crib: 0 } })
+    expect(next.gameStats[0].score).toBe(12)
+  })
+
+  it('a draft with no parts yet counts what it holds as play', () => {
+    const next = gameStateReducer(state, { type: 'DRAFT_ADJUSTED', payload: { playerId: 'p2', change: 2, part: 'play' } })
+    expect(next.roundState.players[1]).toMatchObject({ draft: 7, draft_parts: { play: 7, hand: 0, crib: 0 } })
+  })
+
+  it('a plain tap on a draft with parts goes to play, and a game without parts is untouched', () => {
+    const plain = gameStateReducer(state, { type: 'DRAFT_ADJUSTED', payload: { playerId: 'p1', change: 1 } })
+    expect(plain.roundState.players[0].draft_parts.play).toBe(2)
+    const none = gameStateReducer(state, { type: 'DRAFT_ADJUSTED', payload: { playerId: 'p2', change: 1 } })
+    expect(none.roundState.players[1].draft_parts).toBeNull()
+  })
+})

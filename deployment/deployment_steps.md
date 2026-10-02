@@ -49,16 +49,23 @@ You can use the provided scripts to automate the frontend build and deploy proce
 
   
   ```powershell
-  ./deploy-cards-app.ps1
+  .\deployment\deploy-cards-app.ps1
   ```
 
-These scripts will:
+  Options: `-SkipTests`, `-SkipBackup`, `-Force` (deploy even if the Pi already has this commit), `-PiHost`, `-PiUser`, `-Port`.
 
-- Build the frontend (`app/`)
-- Copy the build output to the Raspberry Pi (`~/skorbord-cards/app/`)
-- (You may need to make the shell script executable: `chmod +x deploy-cards-app.sh`)
+The PowerShell script is the full release. Run it after you make changes. It will:
 
-> **Note:** Backend deployment and DB copy are still manual (see below).
+1. Check the Pi answers over SSH, and stop if the Pi already has your last commit (no uncommitted changes, no `-Force`).
+2. Run the API and app tests, then build the frontend.
+3. Run `pi-backup.sh` on the Pi: stops the app, backs up the database and code.
+4. Copy the frontend and backend, and install backend packages on the Pi. `api/.env` is never touched.
+5. Start the app and wait for `/health`. Database migrations run when the app starts.
+6. If a step fails before the app starts again, restore the old code (`pi-rollback.sh --code-only`, database untouched). If the app starts but is unhealthy, print the rollback commands.
+
+The bash script `deploy-cards-app.sh` only builds and copies; it does not test, back up or roll back.
+
+> **Note:** DB copy is still manual (see below). Each release clears the previous release's `node_modules.old` on the Pi, since the new backup replaces it. A first deploy after a backup reinstalls all packages on the Pi, which takes a while.
 
 ---
 
