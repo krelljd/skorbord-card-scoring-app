@@ -13,7 +13,7 @@ import ReorderablePlayerCard from './ReorderablePlayerCard.jsx'
 import NumberPad from './NumberPad.jsx'
 import RoundHistory from './RoundHistory.jsx'
 import PartSheet from './PartSheet.jsx'
-import { recapLine, noHandPoints } from '../../utils/cribbage.js'
+import { recapLine, noHandPoints, PART_LABELS, isValidPartValue } from '../../utils/cribbage.js'
 import { computeWinner } from '../../hooks/winnerLogic.js'
 
 const UNDO_WINDOW_MS = 5000
@@ -44,6 +44,7 @@ const GamePlay = ({
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [dealerModalOpen, setDealerModalOpen] = useState(false)
   const [padPlayerId, setPadPlayerId] = useState(null)
+  const [partPad, setPartPad] = useState(null) // { playerId, part }: hand or crib typed straight from a card button
   const [totalOnly, setTotalOnly] = useState(false) // plain total pad instead of the part sheet
   const [emptyHandPrompt, setEmptyHandPrompt] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -131,6 +132,30 @@ const GamePlay = ({
     }
     setPadPlayerId(playerId)
   }, [gameManager.isConnected, showError])
+
+  // Cribbage card buttons: Play opens the sheet with the pegging events, Hand and Crib the pad
+  const openPart = useCallback((playerId, part) => {
+    if (part === 'play') {
+      setTotalOnly(false)
+      setPadPlayerId(playerId)
+      return
+    }
+    if (!gameManager.isConnected) {
+      showError('Reconnect to type an exact value. Taps still work offline.')
+      return
+    }
+    setPartPad({ playerId, part })
+  }, [gameManager.isConnected, showError])
+
+  const handlePartPadSave = useCallback(async (value) => {
+    const { playerId, part } = partPad
+    setPartPad(null)
+    try {
+      await gameManager.setDraftPoints(playerId, value, part)
+    } catch (error) {
+      showError(`Failed to set ${part} points: ${parseError(error).message}`)
+    }
+  }, [gameManager, partPad, showError])
 
   const handlePadSave = useCallback(async (points) => {
     const playerId = padPlayerId
@@ -439,6 +464,9 @@ const GamePlay = ({
                     }}
                     isDealer={gameManager.game?.dealer_id === playerStat.player_id}
                     showCrib={tracksParts}
+                    partsMode={tracksParts}
+                    draftParts={roundState?.players.find(p => p.player_id === playerStat.player_id)?.draft_parts ?? null}
+                    onPartClick={openPart}
                     isWinner={isWinner}
                     onDealerClick={cycleDealer}
                     disabled={isFinalized || gameManager.loading || gameState.isReorderMode}
@@ -514,6 +542,22 @@ const GamePlay = ({
             }}
             onTotalOnly={() => setTotalOnly(true)}
             onClose={() => setPadPlayerId(null)}
+          />
+        )
+      })()}
+
+      {partPad && (() => {
+        const p = roundState.players.find(x => x.player_id === partPad.playerId)
+        return (
+          <NumberPad
+            title={`${PART_LABELS[partPad.part]} points`}
+            subtitle={p?.player_name}
+            initial={p?.draft_parts?.[partPad.part] || 0}
+            allowNegative={false}
+            isValid={(v) => isValidPartValue(partPad.part, v)}
+            invalidHint={`Not a possible ${partPad.part} score`}
+            onSave={handlePartPadSave}
+            onCancel={() => setPartPad(null)}
           />
         )
       })()}
