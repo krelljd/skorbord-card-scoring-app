@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs'
 
-process.env.DATABASE_URL = 'sqlite:///tmp-test/player-admin-test.db'
+process.env.DATABASE_URL = 'sqlite:///tmp-test-playerAdmin/player-admin-test.db'
 const { default: db } = await import('../db/database.js')
 const { applySchema } = await import('./helpers/applySchema.js')
 const { renamePlayer } = await import('../utils/playerAdmin.js')
@@ -16,7 +16,7 @@ before(async () => {
 
 after(async () => {
   await db.close()
-  fs.rmSync(new URL('../tmp-test', import.meta.url), { recursive: true, force: true })
+  fs.rmSync(new URL('../tmp-test-playerAdmin', import.meta.url), { recursive: true, force: true })
 })
 
 test('renames a player and returns the updated row', async () => {

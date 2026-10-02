@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -140,7 +140,7 @@ export async function runMigrations(db) {
 // Add top-level script runner for CLI usage
 
 // ES module entry point check
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   console.log('🚀 migrationRunner.js starting...');
   import('../database.js').then(async ({ default: db }) => {
     try {

@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs'
 
-process.env.DATABASE_URL = 'sqlite:///tmp-test/transaction-queue-test.db'
+process.env.DATABASE_URL = 'sqlite:///tmp-test-transactionQueue/transaction-queue-test.db'
 const { default: db } = await import('../db/database.js')
 
 before(async () => {
@@ -12,7 +12,7 @@ before(async () => {
 
 after(async () => {
   await db.close()
-  fs.rmSync(new URL('../tmp-test', import.meta.url), { recursive: true, force: true })
+  fs.rmSync(new URL('../tmp-test-transactionQueue', import.meta.url), { recursive: true, force: true })
 })
 
 test('two concurrent read-then-write +1 transactions on the same row both apply with no SQLITE_ERROR', async () => {

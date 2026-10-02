@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, isAbsolute } from 'path';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -71,7 +71,7 @@ class DatabaseManager {
     const dbUrl = process.env.DATABASE_URL || 'sqlite:///db/cards-sqlite.db';
     let dbPath = dbUrl.replace(/^sqlite:\/\/\//, '');
 
-    if (!dbPath.startsWith('/')) {
+    if (!isAbsolute(dbPath)) {
       dbPath = join(__dirname, '..', dbPath);
     }
 

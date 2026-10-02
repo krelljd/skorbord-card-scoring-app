@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
 console.log = () => {}
 console.error = () => {}
@@ -12,11 +13,7 @@ const { default: db } = await import('../db/database.js')
 const { MigrationRunner } = await import('../db/migrations/migrationRunner.js')
 const { findTotalMismatches } = await import('../db/roundTotals.js')
 
-const migrationsDir = fileURLToDir(new URL('../db/migrations', import.meta.url))
-
-function fileURLToDir(url) {
-  return url.pathname
-}
+const migrationsDir = fileURLToPath(new URL('../db/migrations', import.meta.url))
 
 after(async () => {
   await db.close()
