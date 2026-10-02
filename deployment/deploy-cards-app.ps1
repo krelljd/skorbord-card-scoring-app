@@ -9,12 +9,14 @@
 #
 # What it does:
 #   1. Checks the Pi answers over SSH, and stops if the last deploy already has your code.
-#   2. Runs the tests, then builds the frontend.
+#   2. Installs local packages if they are missing, runs the tests, then builds the frontend.
 #   3. Runs pi-backup.sh on the Pi: stops the app, backs up the database and code.
 #   4. Copies the frontend and backend, installs backend packages on the Pi.
-#   5. Starts the app and waits for /health. Migrations run when the app starts.
+#   5. Runs database migrations on the Pi (npm run migrate), starts the app and waits for /health.
+#      The app does NOT run migrations by itself, so a release with a new migration needs this step.
 #   6. If a step fails before the app is started again, it restores the old code on the Pi
-#      (database untouched) and starts the old version. If the app starts but is unhealthy,
+#      and starts the old version. Migrations are additive, so the old code runs on a migrated
+#      database. For a full undo (database too) run pi-rollback.sh on the Pi. If the app starts but is unhealthy,
 #      it tells you the rollback commands and leaves the decision to you.
 #
 # api/.env on the Pi is never touched.
@@ -70,7 +72,18 @@ try {
     }
     if ($dirty) { Write-Host "Note: you have uncommitted changes. They will be deployed." -ForegroundColor Yellow }
 
-    # 2. Tests, then build
+    # 2. Local packages, tests, then build
+    if (-not (Test-Path (Join-Path $repoRoot 'api/node_modules'))) {
+        Write-Step "Installing API packages (first run)"
+        npm --prefix api install
+        Assert-Success "npm install (api)"
+    }
+    if (-not (Test-Path (Join-Path $repoRoot 'app/node_modules'))) {
+        Write-Step "Installing app packages (first run)"
+        npm --prefix app install
+        Assert-Success "npm install (app)"
+    }
+
     if (-not $SkipTests) {
         Write-Step "Running API tests"
         npm --prefix api test
@@ -126,7 +139,12 @@ try {
     ssh $target "mkdir -p $remoteRoot/api && tar xzf $remoteRoot/$backendArchive -C $remoteRoot/api && rm $remoteRoot/$backendArchive && cd $remoteRoot/api && npm install --omit=dev"
     Assert-Success "extract backend archive and install dependencies on Pi"
 
-    # 5. Start and check health. Migrations run as the app starts.
+    # 5. Migrate while the app is stopped (each migration runs in its own transaction), then start.
+    Write-Step "Running database migrations"
+    ssh $target "cd $remoteRoot/api && npm run migrate"
+    Assert-Success "npm run migrate on Pi"
+
+    # Start and check health
     Write-Step "Starting the app"
     ssh $target "sudo systemctl start $service"
     Assert-Success "start $service"
@@ -159,8 +177,8 @@ catch {
     Write-Host "DEPLOY FAILED: $problem" -ForegroundColor Red
 
     if (-not $serviceStarted -and $rollbackReady) {
-        # The database is untouched until the app starts, so restore the old code only
-        Write-Host "Restoring the old code on the Pi (database untouched) ..." -ForegroundColor Yellow
+        # Restore the old code only. Migrations are additive, so the old code runs on the migrated database.
+        Write-Host "Restoring the old code on the Pi ..." -ForegroundColor Yellow
         ssh $target "cd $remoteRoot && ./pi-rollback.sh --code-only --yes"
         if ($LASTEXITCODE -eq 0) {
             Write-Host "The old version is running again." -ForegroundColor Yellow

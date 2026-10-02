@@ -41,7 +41,7 @@ test('an empty database gets the baseline schema and seed rows', async () => {
   await new MigrationRunner(db).run()
 
   const applied = (await db.query('SELECT name FROM migrations ORDER BY name')).map((r) => r.name)
-  assert.deepEqual(applied, [BASELINE_MIGRATION, '002_rounds.sql', '003_round_support.sql', '004_score_parts.sql'])
+  assert.deepEqual(applied, [BASELINE_MIGRATION, '002_rounds.sql', '003_round_support.sql', '004_score_parts.sql', '005_cribbage_parts_by_name.sql'])
 
   const stats = await db.query('PRAGMA table_info(stats)')
   assert.ok(stats.some((c) => c.name === 'player_order'))

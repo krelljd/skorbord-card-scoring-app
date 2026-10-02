@@ -57,11 +57,12 @@ You can use the provided scripts to automate the frontend build and deploy proce
 The PowerShell script is the full release. Run it after you make changes. It will:
 
 1. Check the Pi answers over SSH, and stop if the Pi already has your last commit (no uncommitted changes, no `-Force`).
-2. Run the API and app tests, then build the frontend.
+2. Install local packages if missing, run the API and app tests, then build the frontend.
 3. Run `pi-backup.sh` on the Pi: stops the app, backs up the database and code.
 4. Copy the frontend and backend, and install backend packages on the Pi. `api/.env` is never touched.
-5. Start the app and wait for `/health`. Database migrations run when the app starts.
-6. If a step fails before the app starts again, restore the old code (`pi-rollback.sh --code-only`, database untouched). If the app starts but is unhealthy, print the rollback commands.
+5. Run database migrations on the Pi (`npm run migrate`). The app does not run them by itself.
+6. Start the app and wait for `/health`.
+7. If a step fails before the app starts again, restore the old code (`pi-rollback.sh --code-only`). Migrations are additive, so the old code runs on a migrated database. If the app starts but is unhealthy, print the rollback commands.
 
 The bash script `deploy-cards-app.sh` only builds and copies; it does not test, back up or roll back.
 
