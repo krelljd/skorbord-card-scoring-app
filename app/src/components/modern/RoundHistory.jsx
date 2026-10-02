@@ -6,10 +6,48 @@ import NumberPad from './NumberPad.jsx'
  * running total under each score. Tap a saved cell to correct it.
  * Games from before round tracking show one "Earlier" row with totals only.
  */
+const LINE_COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16', '#6b7280']
+
+/** Running totals after each saved round, one line per player. */
+const TotalsChart = ({ players, rows }) => {
+  if (rows.length < 2) return null
+  const W = 320
+  const H = 110
+  const pad = 8
+  const all = rows.flatMap((r) => r.cells.map((c) => c.running))
+  const min = Math.min(0, ...all)
+  const max = Math.max(1, ...all)
+  const x = (i) => pad + (i * (W - 2 * pad)) / (rows.length - 1)
+  const y = (v) => H - pad - ((v - min) * (H - 2 * pad)) / (max - min)
+  return (
+    <div className="mt-4">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Running totals by round">
+        {players.map((p, pi) => (
+          <polyline
+            key={p.player_id}
+            fill="none"
+            stroke={LINE_COLORS[pi % LINE_COLORS.length]}
+            strokeWidth="2"
+            points={rows.map((r, i) => `${x(i)},${y(r.cells[pi].running)}`).join(' ')}
+          />
+        ))}
+      </svg>
+      <div className="flex flex-wrap gap-3 text-xs justify-center">
+        {players.map((p, pi) => (
+          <span key={p.player_id} className="flex items-center gap-1">
+            <span className="inline-block w-3 h-1 rounded" style={{ background: LINE_COLORS[pi % LINE_COLORS.length] }} />
+            {p.player_name}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
   const [editing, setEditing] = useState(null)
 
-  const { players, rows, totals } = useMemo(() => {
+  const { players, rows, totals, averages } = useMemo(() => {
     const players = roundState?.players || []
     const running = {}
     const rows = (roundState?.rounds || [])
@@ -27,7 +65,12 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
         return { round: r, cells }
       })
     const totals = players.map((p) => running[p.player_id] || 0)
-    return { players, rows, totals }
+    // Averages use real rounds only; the "Earlier" row holds old totals, not a round
+    const real = rows.filter((r) => !r.round.is_backfill)
+    const averages = players.map((p, i) =>
+      real.length ? Math.round((real.reduce((sum, r) => sum + r.cells[i].points, 0) / real.length) * 10) / 10 : null
+    )
+    return { players, rows, totals, averages }
   }, [roundState])
 
   const save = async (points) => {
@@ -92,10 +135,19 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
                     <th key={players[i].player_id}>{t}</th>
                   ))}
                 </tr>
+                {averages.some((a) => a !== null) && (
+                  <tr className="font-normal">
+                    <th className="text-left font-normal">Avg per round</th>
+                    {averages.map((a, i) => (
+                      <td key={players[i].player_id}>{a ?? '–'}</td>
+                    ))}
+                  </tr>
+                )}
               </tfoot>
             </table>
           </div>
         )}
+        <TotalsChart players={players} rows={rows} />
         {rows.length > 0 && (
           <p className="text-xs text-base-content/50 mt-2">
             Small number is the running total. • marks a corrected score.
