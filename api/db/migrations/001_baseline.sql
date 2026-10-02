@@ -1,14 +1,11 @@
--- Baseline schema of the production database (cards-sqlite.db).
--- Generated from a verified VACUUM INTO copy taken from the Raspberry Pi on 2026-10-01.
--- Schema only, plus the game_types seed rows. No user data.
--- Not a migration: lives outside api/db/migrations/ so the migration runner ignores it.
--- Differs from migrations 001+002; see commit message.
-
-CREATE TABLE migrations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+-- +migrate Up
+-- Baseline schema: matches the production database (cards-sqlite.db) as verified on
+-- 2026-10-01 from a VACUUM INTO copy taken on the Raspberry Pi. It replaces the old
+-- 001_initial_schema.sql and 002_add_player_order.sql, which no longer built the same schema.
+-- Databases that already applied those two files are marked as baselined by the runner
+-- without running this file. Only empty databases execute it.
+-- The migrations table is created by the runner, not here.
+-- Contains the game_types seed rows and no user data.
 
 CREATE TABLE sqids (
     id TEXT PRIMARY KEY,

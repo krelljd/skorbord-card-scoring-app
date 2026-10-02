@@ -112,6 +112,19 @@ class DatabaseManager {
     }));
   }
 
+  // Run a multi-statement SQL script (migrations). No parameters.
+  async exec(sql) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    return retryOnBusy(() => new Promise((resolve, reject) => {
+      this.db.exec(sql, (err) => {
+        if (err) { console.error('❌ Database exec error:', err); reject(err); }
+        else resolve();
+      });
+    }));
+  }
+
   async get(sql, params = []) {
     if (!this.isInitialized) {
       await this.initialize();
