@@ -9,7 +9,7 @@ process.env.DATABASE_URL = 'sqlite:///tmp-test-roundstats/round-stats-test.db'
 const { default: db } = await import('../db/database.js')
 const { applySchema } = await import('./helpers/applySchema.js')
 const rounds = await import('../services/rounds.js')
-const { summarizeRounds, getRivalryRoundStats } = await import('../services/roundStats.js')
+const { summarizeRounds, summarizeParts, getRivalryRoundStats } = await import('../services/roundStats.js')
 
 before(async () => {
   await applySchema(db)
@@ -83,4 +83,33 @@ test('only saved rounds of finished games count, and the earlier-games row is le
   assert.equal(stats.p1.cribbage.best_round.points, 12)
   assert.equal(stats.p2.cribbage.rounds_played, 2) // 4, then a 0 in the final round
   assert.equal(stats.p2.cribbage.avg_round, 2)
+})
+
+const partRow = (extra) => ({ player_id: 'p1', game_type_id: 'cribbage', dealer_id: 'p1', play_points: 0, hand_points: 0, crib_points: 0, ...extra })
+
+test('part stats: averages, bests and shares; crib counts only rounds the player dealt', () => {
+  const out = summarizeParts([
+    partRow({ play_points: 4, hand_points: 12, crib_points: 8 }),
+    partRow({ dealer_id: 'p2', play_points: 6, hand_points: 8, crib_points: null }),
+    partRow({ play_points: 2, hand_points: 20, crib_points: 4 })
+  ]).p1.cribbage
+  assert.equal(out.rounds_tracked, 3)
+  assert.equal(out.cribs_dealt, 2)
+  assert.equal(out.avg_play, 4)
+  assert.equal(out.avg_hand, 13.3)
+  assert.equal(out.avg_crib, 6)
+  assert.equal(out.best_hand, 20)
+  assert.equal(out.best_crib, 8)
+  assert.equal(out.share_play + out.share_hand + out.share_crib > 99.5, true)
+})
+
+test('part stats skip rounds with no parts and report no crib average without a dealt crib', () => {
+  const out = summarizeParts([
+    partRow({ play_points: null, hand_points: null, crib_points: null }),
+    partRow({ dealer_id: 'p2', play_points: 3, hand_points: 5, crib_points: null })
+  ]).p1.cribbage
+  assert.equal(out.rounds_tracked, 1)
+  assert.equal(out.avg_crib, null)
+  assert.equal(out.best_crib, null)
+  assert.equal(summarizeParts([partRow({ play_points: null, hand_points: null, crib_points: null })]).p1, undefined)
 })
