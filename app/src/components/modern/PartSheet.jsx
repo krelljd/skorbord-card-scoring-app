@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import NumberPad from './NumberPad.jsx'
-import { PARTS, PART_LABELS, PEG_BUTTONS, PLAY_WARNING, isValidPartValue } from '../../utils/cribbage.js'
+import { PARTS, PART_LABELS, PEG_EVENTS, RUN_LENGTHS, PLAY_WARNING, isValidPartValue } from '../../utils/cribbage.js'
 
 /**
  * Bottom sheet for one player's cribbage points: play, hand and crib.
- * Play takes quick taps (1, 2, 3, 4, 6) with Undo for the last one; hand and crib
+ * Play takes one tap per pegging event (15, 31, Pair, Run, Trips, Quad, Go, Last card)
+ * with Undo for the last one; hand and crib
  * take one number on the pad, which refuses scores that cannot happen.
  * The crib row only shows for the dealer.
  *
@@ -13,18 +14,20 @@ import { PARTS, PART_LABELS, PEG_BUTTONS, PLAY_WARNING, isValidPartValue } from 
  */
 const PartSheet = ({ title, subtitle, parts, isDealer, quickPlay = true, onAddPlay, onSetPart, onTotalOnly, onClose }) => {
   const [padPart, setPadPart] = useState(null)
-  const [taps, setTaps] = useState([])
+  const [taps, setTaps] = useState([]) // { label, points } for each peg tap, newest last
+  const [pickingRun, setPickingRun] = useState(false)
 
-  const tap = (delta) => {
-    setTaps((t) => [...t, delta])
-    onAddPlay?.(delta)
+  const tap = (label, points) => {
+    setTaps((t) => [...t, { label, points }])
+    setPickingRun(false)
+    onAddPlay?.(points)
   }
 
   const undo = () => {
     const last = taps[taps.length - 1]
-    if (last === undefined) return
+    if (!last) return
     setTaps((t) => t.slice(0, -1))
-    onAddPlay?.(-last)
+    onAddPlay?.(-last.points)
   }
 
   const rows = PARTS.filter((part) => part !== 'crib' || isDealer)
@@ -59,17 +62,42 @@ const PartSheet = ({ title, subtitle, parts, isDealer, quickPlay = true, onAddPl
 
               {part === 'play' && quickPlay && (
                 <div className="mt-2">
-                  <div className="flex flex-wrap gap-2">
-                    {PEG_BUTTONS.map((n) => (
-                      <button key={n} type="button" className="btn btn-primary btn-md flex-1" onClick={() => tap(n)}>
-                        +{n}
+                  <div className="grid grid-cols-3 gap-2">
+                    {PEG_EVENTS.map((e) => (
+                      <button key={e.label} type="button" className="btn btn-primary btn-md flex-col h-auto py-2 leading-tight" onClick={() => tap(e.label, e.points)}>
+                        <span>{e.label}</span>
+                        <span className="text-xs font-normal opacity-80">+{e.points}</span>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className={`btn btn-md flex-col h-auto py-2 leading-tight ${pickingRun ? 'btn-secondary' : 'btn-primary'}`}
+                      onClick={() => setPickingRun((v) => !v)}
+                      aria-expanded={pickingRun}
+                    >
+                      <span>Run</span>
+                      <span className="text-xs font-normal opacity-80">3 to 7</span>
+                    </button>
                   </div>
+                  {pickingRun && (
+                    <div className="mt-2 flex items-center gap-2" data-testid="run-lengths">
+                      <span className="text-sm">Cards in the run:</span>
+                      {RUN_LENGTHS.map((n) => (
+                        <button key={n} type="button" className="btn btn-secondary btn-sm flex-1" onClick={() => tap(`Run of ${n}`, n)}>
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {taps.length > 0 && (
+                    <p className="mt-2 text-xs text-base-content/70" data-testid="peg-log">
+                      So far: {taps.map((t) => t.label).join(' · ')}
+                    </p>
+                  )}
                   <div className="mt-2 flex gap-2">
                     {isDealer && (
-                      <button type="button" className="btn btn-sm btn-outline" onClick={() => tap(2)}>
-                        His heels +2
+                      <button type="button" className="btn btn-sm btn-outline" onClick={() => tap('Heels', 2)}>
+                        Heels +2
                       </button>
                     )}
                     <button type="button" className="btn btn-sm btn-ghost" onClick={undo} disabled={taps.length === 0}>
