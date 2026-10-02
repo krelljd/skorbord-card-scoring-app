@@ -196,6 +196,33 @@ class DatabaseManager {
     return result;
   }
 
+  /**
+   * Run a fully synchronous callback inside one transaction. The callback gets a
+   * handle with all(sql, params), get(sql, params) and run(sql, params), all
+   * synchronous. Nothing else can touch the connection until it returns, so it
+   * is atomic with respect to every other request. Throwing rolls back.
+   * Queued behind any async transaction() so the two never overlap.
+   * @template T
+   * @param {(tx: { all: Function, get: Function, run: Function }) => T} fn
+   * @returns {Promise<T>}
+   */
+  async transactionSync(fn) {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    const handle = {
+      all: (sql, params = []) => this._all(sql, params),
+      get: (sql, params = []) => this._get(sql, params),
+      run: (sql, params = []) => this._run(sql, params)
+    };
+    const run = async () => this.db.transaction(() => fn(handle))();
+
+    const result = this.transactionQueue.then(run, run);
+    this.transactionQueue = result.then(() => {}, () => {});
+    return result;
+  }
+
   // Health check
   async healthCheck() {
     try {

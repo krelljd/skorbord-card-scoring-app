@@ -4,7 +4,8 @@ import {
   validateUpdateGame,
   validateGameAccess 
 } from '../middleware/validation.js';
-import { createResponse, generateUUID, determineWinner, calculateRivalryStats } from '../utils/helpers.js';
+import { createResponse, generateUUID, calculateRivalryStats } from '../utils/helpers.js';
+import { closeOpenRound } from '../services/rounds.js';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
 
@@ -31,7 +32,7 @@ router.get('/active', async (req, res, next) => {
       FROM games g
       LEFT JOIN game_types gt ON g.game_type_id = gt.id
       LEFT JOIN players p ON g.winner_id = p.id
-      WHERE g.sqid_id = ? AND g.finalized = false
+      WHERE g.sqid_id = ? AND g.finalized = false AND g.abandoned_at IS NULL
       ORDER BY g.started_at DESC LIMIT 1
     `, [sqid]);
     if (!game) {
@@ -175,8 +176,12 @@ router.post('/', validateCreateGame, async (req, res, next) => {
 
     // Create game within a transaction
     const result = await db.transaction(async (db) => {
-      // Delete any existing non-finalized games for this sqid
-      await db.run('DELETE FROM games WHERE sqid_id = ? AND finalized = false', [sqid]);
+      // Keep any unfinished game for this sqid (scores and rounds included) but mark it
+      // abandoned so it is never offered as the active game again.
+      await db.run(
+        'UPDATE games SET abandoned_at = ? WHERE sqid_id = ? AND finalized = false AND abandoned_at IS NULL',
+        [new Date().toISOString(), sqid]
+      );
 
       const gameId = generateUUID();
       
@@ -225,9 +230,18 @@ router.post('/', validateCreateGame, async (req, res, next) => {
         );
       }
 
-      // Create or update rivalry
-      // Note: We don't call createOrUpdateRivalry here since it was already called above
-      // The rivalry is already created with the correct relationships
+      // Open round 1: an empty draft with a zero row per player.
+      const roundId = generateUUID();
+      await db.run(
+        "INSERT INTO rounds (id, game_id, round_number, dealer_id, status, created_at) VALUES (?, ?, 1, ?, 'open', ?)",
+        [roundId, gameId, initialDealerId, gameData.started_at]
+      );
+      for (const playerId of finalPlayerIds) {
+        await db.run(
+          'INSERT INTO round_scores (round_id, game_id, player_id, points, updated_at) VALUES (?, ?, ?, 0, ?)',
+          [roundId, gameId, playerId, gameData.started_at]
+        );
+      }
 
       return gameData;
     });
@@ -359,6 +373,11 @@ router.put('/:gameId', validateGameAccess, validateUpdateGame, async (req, res, 
       return res.json(createResponse(true, gameInfo));
     }
     
+    // Finalizing saves whatever is in the open round as the game's last round.
+    if (finalized && !gameInfo.finalized) {
+      await closeOpenRound(db, gameInfo.id);
+    }
+
     // Update game
     const setClause = Object.keys(updates).map(key => `${key} = ${updates[key]}`).join(', ');
     params.push(gameInfo.id);
