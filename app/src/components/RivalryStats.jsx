@@ -159,11 +159,15 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, on
                           <h1 className={`font-bold text-center mb-4 ${getPlayerTextColorClassByName(player.name, localPlayers)}`}>{player.name}</h1>
 
                           {(() => {
-                            const parts = roundStats[player.id]?.[gt.id || gt.game_type_id]?.parts
-                            if (!parts) return null
+                            const rs = roundStats[player.id]?.[gt.id || gt.game_type_id]
+                            const parts = rs?.parts
+                            const skunks = rs?.skunks
+                            if (!parts && !skunks) return null
                             const fmt = (n) => (n === null || n === undefined ? 'N/A' : n)
                             return (
                               <div className="stats stats-vertical shadow w-full mb-3" data-testid="part-stats">
+                                {parts && (
+                                  <>
                                 <div className="stat">
                                   <div className="stat-title text-xs">Average per round: play / hand / crib</div>
                                   <div className="stat-value text-lg text-primary">
@@ -181,6 +185,16 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, on
                                     {fmt(parts.share_play)}% / {fmt(parts.share_hand)}% / {fmt(parts.share_crib)}%
                                   </div>
                                 </div>
+                                  </>
+                                )}
+                                {skunks && (
+                                  <div className="stat">
+                                    <div className="stat-title text-xs">Skunks given / received (double in brackets)</div>
+                                    <div className="stat-value text-lg">
+                                      {skunks.skunks_given} ({skunks.double_skunks_given}) / {skunks.skunks_received} ({skunks.double_skunks_received})
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )
                           })()}

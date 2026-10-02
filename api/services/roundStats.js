@@ -81,6 +81,35 @@ export function summarizeParts(rows) {
   return result;
 }
 
+export const SKUNK_LINE = 91;
+export const DOUBLE_SKUNK_LINE = 61;
+
+/**
+ * Skunks from final scores of finished games with a confirmed winner: a player
+ * who finishes below 91 is skunked, below 61 double skunked. The winner is
+ * credited once per skunked opponent. Shown only; nothing is stored.
+ * @param {Array<{ game_id: string, game_type_id: string, winner_id: string, player_id: string, score: number }>} rows
+ */
+export function summarizeSkunks(rows) {
+  const result = {};
+  const slot = (playerId, gameTypeId) =>
+    ((result[playerId] ||= {})[gameTypeId] ||= { skunks_given: 0, skunks_received: 0, double_skunks_given: 0, double_skunks_received: 0 });
+
+  for (const row of rows) {
+    if (row.player_id === row.winner_id || row.score >= SKUNK_LINE) continue;
+    const double = row.score < DOUBLE_SKUNK_LINE;
+    const loser = slot(row.player_id, row.game_type_id);
+    const winner = slot(row.winner_id, row.game_type_id);
+    loser.skunks_received += 1;
+    winner.skunks_given += 1;
+    if (double) {
+      loser.double_skunks_received += 1;
+      winner.double_skunks_given += 1;
+    }
+  }
+  return result;
+}
+
 /**
  * One query for the whole rivalry, aggregated in memory.
  */
@@ -100,6 +129,20 @@ export async function getRivalryRoundStats(db, rivalryId) {
   for (const [playerId, byType] of Object.entries(summarizeParts(rows))) {
     for (const [gameTypeId, parts] of Object.entries(byType)) {
       result[playerId][gameTypeId].parts = parts;
+    }
+  }
+  const skunkRows = await db.query(
+    `SELECT g.id AS game_id, g.game_type_id, g.winner_id, s.player_id, s.score
+     FROM games g
+     JOIN game_types gt ON gt.id = g.game_type_id AND gt.score_parts IS NOT NULL
+     JOIN stats s ON s.game_id = g.id
+     WHERE g.rivalry_id = ? AND g.finalized = 1 AND g.winner_id IS NOT NULL
+       AND COALESCE(g.win_condition_type, 'win') = 'win' AND COALESCE(g.win_condition_value, 121) = 121`,
+    [rivalryId]
+  );
+  for (const [playerId, byType] of Object.entries(summarizeSkunks(skunkRows))) {
+    for (const [gameTypeId, skunks] of Object.entries(byType)) {
+      if (result[playerId]?.[gameTypeId]) result[playerId][gameTypeId].skunks = skunks;
     }
   }
   return result;

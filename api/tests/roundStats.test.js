@@ -9,7 +9,7 @@ process.env.DATABASE_URL = 'sqlite:///tmp-test-roundstats/round-stats-test.db'
 const { default: db } = await import('../db/database.js')
 const { applySchema } = await import('./helpers/applySchema.js')
 const rounds = await import('../services/rounds.js')
-const { summarizeRounds, summarizeParts, getRivalryRoundStats } = await import('../services/roundStats.js')
+const { summarizeRounds, summarizeParts, summarizeSkunks, getRivalryRoundStats } = await import('../services/roundStats.js')
 
 before(async () => {
   await applySchema(db)
@@ -112,4 +112,34 @@ test('part stats skip rounds with no parts and report no crib average without a 
   assert.equal(out.avg_crib, null)
   assert.equal(out.best_crib, null)
   assert.equal(summarizeParts([partRow({ play_points: null, hand_points: null, crib_points: null })]).p1, undefined)
+})
+
+test('skunks: below 91 is a skunk, below 61 a double skunk; the winner is credited per skunked opponent', () => {
+  const g = (player_id, score) => ({ game_id: 'g', game_type_id: 'cribbage', winner_id: 'w', player_id, score })
+  const out = summarizeSkunks([g('w', 121), g('a', 85), g('b', 40), g('c', 100)])
+  assert.deepEqual(out.w.cribbage, { skunks_given: 2, skunks_received: 0, double_skunks_given: 1, double_skunks_received: 0 })
+  assert.deepEqual(out.a.cribbage, { skunks_given: 0, skunks_received: 1, double_skunks_given: 0, double_skunks_received: 0 })
+  assert.equal(out.b.cribbage.double_skunks_received, 1)
+  assert.equal(out.c, undefined)
+})
+
+test('rivalry stats attach skunks from finished 121 games with a winner', async () => {
+  await db.run("INSERT INTO rivalries (id, sqid_id) VALUES ('rv2', 's1')")
+  await db.run(
+    `INSERT INTO games (id, sqid_id, game_type_id, rivalry_id, started_at, ended_at, finalized, winner_id, dealer_id, win_condition_type, win_condition_value)
+     VALUES ('sk1', 's1', 'cribbage', 'rv2', '2026-02-01T00:00:00Z', '2026-02-02T00:00:00Z', 0, 'p1', 'p1', 'win', 121)`
+  )
+  for (const [i, [p, score]] of [['p1', 0], ['p2', 0]].entries()) {
+    await db.run('INSERT INTO stats (id, game_id, player_id, score, player_order) VALUES (?, ?, ?, ?, ?)', [`sk1-${p}`, 'sk1', p, score, i + 1])
+  }
+  await db.run("INSERT INTO rounds (id, game_id, round_number, dealer_id, status) VALUES ('sk1-r1', 'sk1', 1, 'p1', 'open')")
+  for (const p of ['p1', 'p2']) await db.run('INSERT INTO round_scores (round_id, game_id, player_id, points) VALUES (?, ?, ?, 0)', ['sk1-r1', 'sk1', p])
+  await rounds.setDraft(db, { gameId: 'sk1', playerId: 'p1', points: 121 })
+  await rounds.setDraft(db, { gameId: 'sk1', playerId: 'p2', points: 55 })
+  await rounds.closeOpenRound(db, 'sk1')
+  await db.run('UPDATE games SET finalized = 1 WHERE id = ?', ['sk1'])
+
+  const stats = await getRivalryRoundStats(db, 'rv2')
+  assert.equal(stats.p1.cribbage.skunks.double_skunks_given, 1)
+  assert.equal(stats.p2.cribbage.skunks.skunks_received, 1)
 })
