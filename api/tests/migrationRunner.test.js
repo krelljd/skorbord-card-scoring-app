@@ -40,8 +40,8 @@ test('an empty database gets the baseline schema and seed rows', async () => {
   await dropAll()
   await new MigrationRunner(db).run()
 
-  const applied = (await db.query('SELECT name FROM migrations')).map((r) => r.name)
-  assert.deepEqual(applied, [BASELINE_MIGRATION])
+  const applied = (await db.query('SELECT name FROM migrations ORDER BY name')).map((r) => r.name)
+  assert.deepEqual(applied, [BASELINE_MIGRATION, '002_rounds.sql'])
 
   const stats = await db.query('PRAGMA table_info(stats)')
   assert.ok(stats.some((c) => c.name === 'player_order'))
@@ -63,7 +63,15 @@ test('a database that applied both legacy migrations is baselined without rerunn
   }
   await db.run("INSERT INTO sqids (id, name) VALUES ('keep', 'keep')")
 
-  await new MigrationRunner(db).run() // would fail with "table already exists" if it reran the baseline
+  // Only the baseline file is visible here, so later migrations (whose tables already
+  // exist from the previous test) are out of the picture.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'baseline-only-'))
+  try {
+    fs.copyFileSync(new URL('../db/migrations/001_baseline.sql', import.meta.url), path.join(dir, BASELINE_MIGRATION))
+    await new MigrationRunner(db, { migrationsDir: dir }).run() // would fail with "table already exists" if it reran the baseline
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 
   const applied = (await db.query('SELECT name FROM migrations ORDER BY name')).map((r) => r.name)
   assert.deepEqual(applied, [BASELINE_MIGRATION, ...LEGACY_MIGRATIONS].sort())
