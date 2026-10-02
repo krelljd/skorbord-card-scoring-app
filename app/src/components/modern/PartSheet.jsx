@@ -69,7 +69,7 @@ const PartSheet = ({ title, subtitle, parts, isDealer, quickPlay = true, onAddPl
                   <div className="mt-2 flex gap-2">
                     {isDealer && (
                       <button type="button" className="btn btn-sm btn-outline" onClick={() => tap(2)}>
-                        His heels +2
+                        Heels +2
                       </button>
                     )}
                     <button type="button" className="btn btn-sm btn-ghost" onClick={undo} disabled={taps.length === 0}>

@@ -22,10 +22,10 @@ describe('PartSheet', () => {
     expect(onAddPlay.mock.calls).toEqual([[2], [6], [-6]])
   })
 
-  it('His heels gives the dealer +2 play', () => {
+  it('Heels gives the dealer +2 play', () => {
     const onAddPlay = vi.fn()
     render(<PartSheet {...base} isDealer onAddPlay={onAddPlay} onSetPart={() => {}} />)
-    fireEvent.click(screen.getByText('His heels +2'))
+    fireEvent.click(screen.getByText('Heels +2'))
     expect(onAddPlay).toHaveBeenCalledWith(2)
   })
 
