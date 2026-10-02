@@ -1,4 +1,4 @@
-import sqlite3 from 'sqlite3';
+import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
@@ -7,6 +7,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const RETRYABLE_CODES = new Set(['SQLITE_BUSY', 'SQLITE_IOERR', 'SQLITE_LOCKED']);
+
+/**
+ * Normalize bind parameters. better-sqlite3 is stricter than the old driver:
+ * it rejects booleans, undefined, and Dates, which routes pass today.
+ * Booleans become 1/0, undefined becomes NULL, Dates become ISO strings.
+ * @param {any[]} params
+ */
+export function bindParams(params = []) {
+  return params.map((value) => {
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (value === undefined) return null;
+    if (value instanceof Date) return value.toISOString();
+    return value;
+  });
+}
 
 /**
  * Retry a DB operation on transient SQLite errors with linear backoff.
@@ -65,51 +80,67 @@ class DatabaseManager {
       fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    this.db = new sqlite3.Database(dbPath);
+    this.db = new Database(dbPath);
 
-    // Run PRAGMAs directly against the handle (not through the guarded run()),
-    // and only mark initialized once they have all completed.
-    await this._runRaw('PRAGMA foreign_keys = ON');
-    await this._runRaw('PRAGMA journal_mode = WAL');
-    await this._runRaw('PRAGMA busy_timeout = 5000');
+    // PRAGMAs run directly against the handle, and initialization is only
+    // marked complete once they have all been applied.
+    this.db.pragma('foreign_keys = ON');
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
 
     this.isInitialized = true;
     console.log(`📊 SQLite database initialized: ${dbPath}`);
     return this.db;
   }
 
-  // Raw run that does NOT trigger initialize() — used only during init.
-  _runRaw(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function (err) {
-        if (err) reject(err);
-        else resolve({ changes: this.changes, lastID: this.lastID });
-      });
-    });
+  // All statements run synchronously on the one connection; the methods stay
+  // async so callers do not change. Statements that return rows (SELECT,
+  // PRAGMA reads) go through all(); everything else through run().
+  _all(sql, params) {
+    const stmt = this.db.prepare(sql);
+    return stmt.reader ? stmt.all(...bindParams(params)) : (stmt.run(...bindParams(params)), []);
+  }
+
+  _run(sql, params) {
+    const stmt = this.db.prepare(sql);
+    if (stmt.reader) {
+      stmt.all(...bindParams(params));
+      return { changes: 0, lastID: 0 };
+    }
+    const info = stmt.run(...bindParams(params));
+    return { changes: info.changes, lastID: Number(info.lastInsertRowid) };
+  }
+
+  _get(sql, params) {
+    const stmt = this.db.prepare(sql);
+    if (!stmt.reader) {
+      stmt.run(...bindParams(params));
+      return undefined;
+    }
+    return stmt.get(...bindParams(params));
+  }
+
+  _logged(kind, fn) {
+    try {
+      return fn();
+    } catch (error) {
+      console.error(`❌ Database ${kind} error:`, error);
+      throw error;
+    }
   }
 
   async query(sql, params = []) {
     if (!this.isInitialized) {
       await this.initialize();
     }
-    return retryOnBusy(() => new Promise((resolve, reject) => {
-      this.db.all(sql, params, (err, rows) => {
-        if (err) { console.error('❌ Database query error:', err); reject(err); }
-        else resolve(rows);
-      });
-    }));
+    return retryOnBusy(async () => this._logged('query', () => this._all(sql, params)));
   }
 
   async run(sql, params = []) {
     if (!this.isInitialized) {
       await this.initialize();
     }
-    return retryOnBusy(() => new Promise((resolve, reject) => {
-      this.db.run(sql, params, function (err) {
-        if (err) { console.error('❌ Database run error:', err); reject(err); }
-        else resolve({ changes: this.changes, lastID: this.lastID });
-      });
-    }));
+    return retryOnBusy(async () => this._logged('run', () => this._run(sql, params)));
   }
 
   // Run a multi-statement SQL script (migrations). No parameters.
@@ -117,39 +148,25 @@ class DatabaseManager {
     if (!this.isInitialized) {
       await this.initialize();
     }
-    return retryOnBusy(() => new Promise((resolve, reject) => {
-      this.db.exec(sql, (err) => {
-        if (err) { console.error('❌ Database exec error:', err); reject(err); }
-        else resolve();
-      });
-    }));
+    return retryOnBusy(async () => this._logged('exec', () => { this.db.exec(sql); }));
   }
 
   async get(sql, params = []) {
     if (!this.isInitialized) {
       await this.initialize();
     }
-    return retryOnBusy(() => new Promise((resolve, reject) => {
-      this.db.get(sql, params, (err, row) => {
-        if (err) { console.error('❌ Database get error:', err); reject(err); }
-        else resolve(row);
-      });
-    }));
+    return retryOnBusy(async () => this._logged('get', () => this._get(sql, params)));
   }
 
   async close() {
     if (this.db) {
-      return new Promise((resolve) => {
-        this.db.close((err) => {
-          if (err) {
-            console.error('❌ Database close error:', err);
-          }
-          this.isInitialized = false;
-          this.initPromise = null;
-          resolve();
-        });
-      });
+      try {
+        this.db.close();
+      } catch (error) {
+        console.error('❌ Database close error:', error);
+      }
     }
+    this.db = null;
     this.isInitialized = false;
     this.initPromise = null;
   }

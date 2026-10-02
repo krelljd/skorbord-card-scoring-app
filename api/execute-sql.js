@@ -15,7 +15,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import sqlite3 from 'sqlite3';
+import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,132 +57,63 @@ function logSuccess(message) {
 }
 
 /**
- * Create a backup of the database
+ * Create a consistent backup of the database. VACUUM INTO reads through the
+ * WAL, so it is safe while the app is running (a plain file copy is not).
  */
 async function createBackup(dbPath) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = `${dbPath}.backup.${timestamp}`;
-  
-  return new Promise((resolve, reject) => {
-    const readStream = fs.createReadStream(dbPath);
-    const writeStream = fs.createWriteStream(backupPath);
-    
-    readStream.on('error', reject);
-    writeStream.on('error', reject);
-    writeStream.on('finish', () => resolve(backupPath));
-    
-    readStream.pipe(writeStream);
-  });
+
+  const db = new Database(dbPath, { fileMustExist: true });
+  try {
+    db.prepare('VACUUM INTO ?').run(backupPath);
+  } finally {
+    db.close();
+  }
+  return backupPath;
 }
 
 /**
- * Execute SQL file against the database
+ * Execute SQL file against the database, all in one transaction.
+ * Returns the number of rows changed by the whole file.
  */
 async function executeSqlFile(sqlFilePath, dbPath) {
-  return new Promise((resolve, reject) => {
-    // Check if SQL file exists
-    if (!fs.existsSync(sqlFilePath)) {
-      return reject(new Error(`SQL file not found: ${sqlFilePath}`));
+  if (!fs.existsSync(sqlFilePath)) {
+    throw new Error(`SQL file not found: ${sqlFilePath}`);
+  }
+  if (!fs.existsSync(dbPath)) {
+    throw new Error(`Database file not found: ${dbPath}`);
+  }
+
+  const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
+  if (!sqlContent.trim()) {
+    throw new Error('SQL file is empty');
+  }
+
+  let db;
+  try {
+    db = new Database(dbPath, { fileMustExist: true });
+  } catch (err) {
+    throw new Error(`Failed to connect to database: ${err.message}`);
+  }
+
+  try {
+    db.pragma('foreign_keys = ON');
+    db.pragma('busy_timeout = 5000');
+
+    const before = db.prepare('SELECT total_changes() AS n').get().n;
+    db.exec('BEGIN TRANSACTION');
+    try {
+      db.exec(sqlContent);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw new Error(`SQL execution failed, transaction rolled back: ${err.message}`);
     }
-
-    // Check if database exists
-    if (!fs.existsSync(dbPath)) {
-      return reject(new Error(`Database file not found: ${dbPath}`));
-    }
-
-    // Read SQL content
-    const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
-    
-    if (!sqlContent.trim()) {
-      return reject(new Error('SQL file is empty'));
-    }
-
-    // Connect to database
-    const db = new sqlite3.Database(dbPath, (err) => {
-      if (err) {
-        return reject(new Error(`Failed to connect to database: ${err.message}`));
-      }
-    });
-
-    // Enable foreign key constraints
-    db.run('PRAGMA foreign_keys = ON', (err) => {
-      if (err) {
-        logWarning(`Failed to enable foreign key constraints: ${err.message}`);
-      }
-    });
-
-    // Execute SQL in a transaction
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION', (err) => {
-        if (err) {
-          db.close();
-          return reject(new Error(`Failed to begin transaction: ${err.message}`));
-        }
-
-        // Split SQL content by semicolons and execute each statement
-        const statements = sqlContent
-          .split(';')
-          .map(stmt => stmt.trim())
-          .filter(stmt => stmt.length > 0);
-
-        let executedStatements = 0;
-        let hasError = false;
-
-        if (statements.length === 0) {
-          db.run('ROLLBACK', () => {
-            db.close();
-            reject(new Error('No valid SQL statements found'));
-          });
-          return;
-        }
-
-        const executeStatement = (index) => {
-          if (index >= statements.length) {
-            // All statements executed successfully
-            db.run('COMMIT', (err) => {
-              db.close();
-              if (err) {
-                reject(new Error(`Failed to commit transaction: ${err.message}`));
-              } else {
-                resolve(executedStatements);
-              }
-            });
-            return;
-          }
-
-          if (hasError) return;
-
-          const statement = statements[index];
-          logInfo(`Executing statement ${index + 1}/${statements.length}...`);
-          
-          db.run(statement, function(err) {
-            if (err) {
-              hasError = true;
-              logError(`Statement ${index + 1} failed: ${err.message}`);
-              logError(`Statement: ${statement}`);
-              
-              db.run('ROLLBACK', () => {
-                db.close();
-                reject(new Error(`SQL execution failed at statement ${index + 1}: ${err.message}`));
-              });
-              return;
-            }
-
-            executedStatements++;
-            if (this.changes > 0) {
-              logInfo(`Statement ${index + 1} completed successfully (${this.changes} rows affected)`);
-            } else {
-              logInfo(`Statement ${index + 1} completed successfully`);
-            }
-            
-            executeStatement(index + 1);
-          });
-        };
-
-        executeStatement(0);
-      });
-    });
-  });
+    return db.prepare('SELECT total_changes() AS n').get().n - before;
+  } finally {
+    db.close();
+  }
 }
 
 /**
@@ -214,10 +145,10 @@ async function main() {
 
     // Execute SQL
     logInfo('Executing SQL file...');
-    const executedStatements = await executeSqlFile(sqlFilePath, dbPath);
+    const changedRows = await executeSqlFile(sqlFilePath, dbPath);
     
     logSuccess(`SQL execution completed successfully!`);
-    logSuccess(`Executed ${executedStatements} SQL statements`);
+    logSuccess(`Rows changed: ${changedRows}`);
     logInfo(`Database backup available at: ${backupPath}`);
 
   } catch (error) {
