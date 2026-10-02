@@ -158,6 +158,33 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, on
                         <div key={player.id} className="card bg-base-100 p-4">
                           <h1 className={`font-bold text-center mb-4 ${getPlayerTextColorClassByName(player.name, localPlayers)}`}>{player.name}</h1>
 
+                          {(() => {
+                            const parts = roundStats[player.id]?.[gt.id || gt.game_type_id]?.parts
+                            if (!parts) return null
+                            const fmt = (n) => (n === null || n === undefined ? 'N/A' : n)
+                            return (
+                              <div className="stats stats-vertical shadow w-full mb-3" data-testid="part-stats">
+                                <div className="stat">
+                                  <div className="stat-title text-xs">Average per round: play / hand / crib</div>
+                                  <div className="stat-value text-lg text-primary">
+                                    {fmt(parts.avg_play)} / {fmt(parts.avg_hand)} / {fmt(parts.avg_crib)}
+                                  </div>
+                                  <div className="stat-desc text-xs">{parts.rounds_tracked} rounds, {parts.cribs_dealt} cribs dealt</div>
+                                </div>
+                                <div className="stat">
+                                  <div className="stat-title text-xs">Best hand / best crib</div>
+                                  <div className="stat-value text-lg text-success">{fmt(parts.best_hand)} / {fmt(parts.best_crib)}</div>
+                                </div>
+                                <div className="stat">
+                                  <div className="stat-title text-xs">Points from play / hand / crib</div>
+                                  <div className="stat-value text-lg">
+                                    {fmt(parts.share_play)}% / {fmt(parts.share_hand)}% / {fmt(parts.share_crib)}%
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })()}
+
                           <div className="stats stats-vertical shadow w-full">
                             {statFields.map(field => {
                               let value = stats[field.key];

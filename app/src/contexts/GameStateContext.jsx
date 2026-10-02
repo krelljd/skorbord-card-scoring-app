@@ -1,5 +1,20 @@
 import { createContext, useContext, useReducer, useCallback, useRef } from 'react'
 
+/**
+ * Optimistic tap on a player's draft. When a part is given, that part moves too;
+ * a draft with no parts yet counts what it already holds as play.
+ */
+export function adjustDraft(player, change, part) {
+  const next = { ...player, draft: player.draft + change }
+  if (part) {
+    const base = player.draft_parts ?? { play: player.draft, hand: 0, crib: 0 }
+    next.draft_parts = { ...base, [part]: (base[part] || 0) + change }
+  } else if (player.draft_parts) {
+    next.draft_parts = { ...player.draft_parts, play: player.draft_parts.play + change }
+  }
+  return next
+}
+
 // Game state reducer following React best practices
 export function gameStateReducer(state, action) {
   switch (action.type) {
@@ -40,14 +55,14 @@ export function gameStateReducer(state, action) {
     }
     case 'DRAFT_ADJUSTED': {
       // Optimistic tap: move one player's draft and total by the same amount
-      const { playerId, change } = action.payload
+      const { playerId, change, part } = action.payload
       if (!state.roundState) return state
       return {
         ...state,
         roundState: {
           ...state.roundState,
           players: state.roundState.players.map(p =>
-            p.player_id === playerId ? { ...p, draft: p.draft + change } : p
+            p.player_id === playerId ? adjustDraft(p, change, part) : p
           )
         },
         gameStats: state.gameStats.map(stat =>

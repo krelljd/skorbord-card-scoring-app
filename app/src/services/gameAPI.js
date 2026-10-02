@@ -132,12 +132,12 @@ class GameAPI {
     return this.roundRequest(sqid, gameId, '', 'GET')
   }
 
-  addToDraft(sqid, gameId, playerId, delta, socketId = null, opId = this.newOpId()) {
-    return this.roundRequest(sqid, gameId, '/current/scores', 'POST', { playerId, delta, socketId, opId })
+  addToDraft(sqid, gameId, playerId, delta, socketId = null, opId = this.newOpId(), part = undefined) {
+    return this.roundRequest(sqid, gameId, '/current/scores', 'POST', { playerId, delta, part, socketId, opId })
   }
 
-  setDraft(sqid, gameId, playerId, points, socketId = null) {
-    return this.roundRequest(sqid, gameId, `/current/scores/${playerId}`, 'PUT', { points, socketId })
+  setDraft(sqid, gameId, playerId, points, socketId = null, part = undefined) {
+    return this.roundRequest(sqid, gameId, `/current/scores/${playerId}`, 'PUT', { points, part, socketId })
   }
 
   commitRound(sqid, gameId, { expectedRound, winnerId = null, socketId = null }) {
@@ -148,8 +148,8 @@ class GameAPI {
     return this.roundRequest(sqid, gameId, '/undo-commit', 'POST', { socketId })
   }
 
-  editRound(sqid, gameId, roundNumber, playerId, points, expectedRevision, socketId = null) {
-    return this.roundRequest(sqid, gameId, `/${roundNumber}/scores/${playerId}`, 'PUT', { points, expectedRevision, socketId })
+  editRound(sqid, gameId, roundNumber, playerId, points, expectedRevision, socketId = null, part = undefined) {
+    return this.roundRequest(sqid, gameId, `/${roundNumber}/scores/${playerId}`, 'PUT', { points, part, expectedRevision, socketId })
   }
 
   // Finalize game - use correct endpoint and method

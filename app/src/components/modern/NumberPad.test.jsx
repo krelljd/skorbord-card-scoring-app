@@ -32,3 +32,18 @@ describe('NumberPad', () => {
     expect(onSave).toHaveBeenCalledWith(53)
   })
 })
+
+describe('NumberPad validation', () => {
+  it('disables Save and shows the hint when the value is not allowed', () => {
+    render(<NumberPad title="t" initial={0} isValid={(v) => v !== 19} invalidHint="Nope" onSave={() => {}} onCancel={() => {}} />)
+    fireEvent.click(screen.getByText('1'))
+    fireEvent.click(screen.getByText('9'))
+    expect(screen.getByRole('alert')).toHaveTextContent('Nope')
+    expect(screen.getByText('Save')).toBeDisabled()
+  })
+
+  it('can turn the negative key off', () => {
+    render(<NumberPad title="t" initial={0} allowNegative={false} onSave={() => {}} onCancel={() => {}} />)
+    expect(screen.getByLabelText('Toggle negative')).toBeDisabled()
+  })
+})

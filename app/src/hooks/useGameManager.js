@@ -86,7 +86,7 @@ export function useGameManager(sqid) {
     flushing.current = true
     try {
       const { dropped, stalled } = await flushQueue(queue.current, (op) =>
-        gameAPI.addToDraft(sqid, gameId, op.playerId, op.delta, socket?.id || null, op.opId)
+        gameAPI.addToDraft(sqid, gameId, op.playerId, op.delta, socket?.id || null, op.opId, op.part)
       )
       setPendingTaps(queue.current.size)
       if (dropped.length > 0) {
@@ -102,12 +102,12 @@ export function useGameManager(sqid) {
 
   // Add points to the open round. Optimistic. If the server cannot be reached the
   // tap is queued with its opId and replays once the connection is back.
-  const updatePlayerScore = useCallback(async (playerId, change) => {
+  const updatePlayerScore = useCallback(async (playerId, change, part = undefined) => {
     const opId = gameAPI.newOpId()
-    dispatch({ type: 'DRAFT_ADJUSTED', payload: { playerId, change } })
+    dispatch({ type: 'DRAFT_ADJUSTED', payload: { playerId, change, part } })
 
     const enqueue = () => {
-      queue.current.push({ opId, gameId, playerId, delta: change, at: Date.now() })
+      queue.current.push({ opId, gameId, playerId, delta: change, part, at: Date.now() })
       setPendingTaps(queue.current.size)
     }
 
@@ -120,7 +120,7 @@ export function useGameManager(sqid) {
 
     inflight.current += 1
     try {
-      const state = await gameAPI.addToDraft(sqid, gameId, playerId, change, socket?.id || null, opId)
+      const state = await gameAPI.addToDraft(sqid, gameId, playerId, change, socket?.id || null, opId, part)
       inflight.current -= 1
       applyRoundState(state)
     } catch (error) {
@@ -146,8 +146,8 @@ export function useGameManager(sqid) {
     }
   }, [applyRoundState, refreshRounds, gameId])
 
-  const setDraftPoints = useCallback((playerId, points) =>
-    roundAction(() => gameAPI.setDraft(sqid, gameId, playerId, points, socket?.id || null)),
+  const setDraftPoints = useCallback((playerId, points, part = undefined) =>
+    roundAction(() => gameAPI.setDraft(sqid, gameId, playerId, points, socket?.id || null, part)),
   [roundAction, sqid, gameId, socket])
 
   const nextRound = useCallback(({ winnerId = null } = {}) =>
@@ -162,8 +162,8 @@ export function useGameManager(sqid) {
     roundAction(() => gameAPI.undoCommit(sqid, gameId, socket?.id || null)),
   [roundAction, sqid, gameId, socket])
 
-  const editRound = useCallback((roundNumber, playerId, points, expectedRevision) =>
-    roundAction(() => gameAPI.editRound(sqid, gameId, roundNumber, playerId, points, expectedRevision, socket?.id || null)),
+  const editRound = useCallback((roundNumber, playerId, points, expectedRevision, part = undefined) =>
+    roundAction(() => gameAPI.editRound(sqid, gameId, roundNumber, playerId, points, expectedRevision, socket?.id || null, part)),
   [roundAction, sqid, gameId, socket])
 
   // Finalize game
