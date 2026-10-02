@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import PartSheet from './PartSheet.jsx'
 
 const base = { title: 'Points this round', subtitle: 'Ann', parts: { play: 3, hand: 0, crib: 0 }, onClose: () => {} }
@@ -12,14 +12,34 @@ describe('PartSheet', () => {
     expect(screen.getByTestId('row-crib')).toBeInTheDocument()
   })
 
-  it('quick buttons add play points and Undo takes the last one back', () => {
+  it('each pegging event adds its points, and Undo takes the last one back', () => {
     const onAddPlay = vi.fn()
     render(<PartSheet {...base} isDealer={false} onAddPlay={onAddPlay} onSetPart={() => {}} />)
     expect(screen.getByText('Undo last')).toBeDisabled()
-    fireEvent.click(screen.getByText('+2'))
-    fireEvent.click(screen.getByText('+6'))
+    fireEvent.click(screen.getByText('15'))
+    fireEvent.click(screen.getByText('Trips'))
+    expect(screen.getByTestId('peg-log')).toHaveTextContent('So far: 15 · Trips')
     fireEvent.click(screen.getByText('Undo last'))
     expect(onAddPlay.mock.calls).toEqual([[2], [6], [-6]])
+    expect(screen.getByTestId('peg-log')).toHaveTextContent('So far: 15')
+  })
+
+  it('Pair, Quad, Go, Last card and 31 score 2, 12, 1, 1 and 2', () => {
+    const onAddPlay = vi.fn()
+    render(<PartSheet {...base} isDealer={false} onAddPlay={onAddPlay} onSetPart={() => {}} />)
+    for (const label of ['Pair', 'Quad', 'Go', 'Last card', '31']) fireEvent.click(screen.getByText(label))
+    expect(onAddPlay.mock.calls.map((c) => c[0])).toEqual([2, 12, 1, 1, 2])
+  })
+
+  it('Run asks for the length and scores that many points', () => {
+    const onAddPlay = vi.fn()
+    render(<PartSheet {...base} isDealer={false} onAddPlay={onAddPlay} onSetPart={() => {}} />)
+    expect(screen.queryByTestId('run-lengths')).toBeNull()
+    fireEvent.click(screen.getByText('Run'))
+    fireEvent.click(within(screen.getByTestId('run-lengths')).getByText('5'))
+    expect(onAddPlay).toHaveBeenCalledWith(5)
+    expect(screen.getByTestId('peg-log')).toHaveTextContent('Run of 5')
+    expect(screen.queryByTestId('run-lengths')).toBeNull()
   })
 
   it('Heels gives the dealer +2 play', () => {
@@ -53,6 +73,6 @@ describe('PartSheet', () => {
 
   it('history mode has no quick buttons', () => {
     render(<PartSheet {...base} quickPlay={false} isDealer={false} onSetPart={() => {}} />)
-    expect(screen.queryByText('+2')).toBeNull()
+    expect(screen.queryByText('Pair')).toBeNull()
   })
 })

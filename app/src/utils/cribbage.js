@@ -9,8 +9,19 @@ export const PARTS = ['play', 'hand', 'crib']
 
 export const PART_LABELS = { play: 'Play', hand: 'Hand', crib: 'Crib' }
 
-/** Quick pegging buttons: go or last card, 15 or 31 or pair, run of 3, run of 4, three of a kind. */
-export const PEG_BUTTONS = [1, 2, 3, 4, 6]
+/** Pegging events, each worth its points. A run scores its length, so it has its own row. */
+export const PEG_EVENTS = [
+  { label: '15', points: 2 },
+  { label: '31', points: 2 },
+  { label: 'Pair', points: 2 },
+  { label: 'Trips', points: 6 },
+  { label: 'Quad', points: 12 },
+  { label: 'Go', points: 1 },
+  { label: 'Last card', points: 1 }
+]
+
+/** Run lengths that can happen while pegging (3 to 7 cards). */
+export const RUN_LENGTHS = [3, 4, 5, 6, 7]
 
 /** Play points above this in one round get a warning (not a block). */
 export const PLAY_WARNING = 61
