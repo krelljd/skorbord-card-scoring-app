@@ -116,7 +116,13 @@ const GamePlay = ({
     )
   }, [roundState])
 
-  const openPad = useCallback((playerId) => setPadPlayerId(playerId), [])
+  const openPad = useCallback((playerId) => {
+    if (!gameManager.isConnected) {
+      showError('Reconnect to type an exact value. Taps still work offline.')
+      return
+    }
+    setPadPlayerId(playerId)
+  }, [gameManager.isConnected, showError])
 
   const handlePadSave = useCallback(async (points) => {
     const playerId = padPlayerId
@@ -375,9 +381,13 @@ const GamePlay = ({
       )}
 
       {/* Connection warning - changes may not be saved while offline */}
-      {!gameManager.isConnected && (
+      {(!gameManager.isConnected || gameManager.pendingTaps > 0) && (
         <div className="alert alert-warning">
-          <span>⚠️ Reconnecting — score changes may not be saved.</span>
+          <span>
+            {gameManager.isConnected
+              ? `Syncing ${gameManager.pendingTaps} score change${gameManager.pendingTaps > 1 ? 's' : ''}…`
+              : `Offline — taps are kept on this device${gameManager.pendingTaps > 0 ? ` (${gameManager.pendingTaps} waiting)` : ''} and sent when the connection returns.`}
+          </span>
         </div>
       )}
 
@@ -417,7 +427,7 @@ const GamePlay = ({
                     isDealer={gameManager.game?.dealer_id === playerStat.player_id}
                     isWinner={isWinner}
                     onDealerClick={cycleDealer}
-                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode || !gameManager.isConnected}
+                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode}
                   />
                 );
               })}
@@ -445,7 +455,7 @@ const GamePlay = ({
           <button
             className="btn btn-primary flex-1"
             onClick={handleNextRound}
-            disabled={!roundState || !gameManager.isConnected}
+            disabled={!roundState || !gameManager.isConnected || gameManager.pendingTaps > 0}
           >
             Next round{roundState?.open_round ? ` (${roundState.open_round})` : ''}
           </button>

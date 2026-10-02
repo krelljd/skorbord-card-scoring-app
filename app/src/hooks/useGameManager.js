@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGameState, useGameDispatch, useGameActions } from '../contexts/GameStateContext.jsx'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import gameAPI from '../services/gameAPI.js'
+import { createOpQueue, flushQueue, isNetworkError } from '../services/opQueue.js'
 
 /**
  * Modern hook that integrates game state management with API and WebSocket services
@@ -17,9 +18,14 @@ export function useGameManager(sqid) {
   // full authoritative round state. While taps are in flight we hold off applying
   // server state so a slow reply cannot move a total backwards under the player.
   const inflight = useRef(0)
+  // Taps made while the server cannot be reached wait here and replay in order
+  const queue = useRef(null)
+  if (!queue.current) queue.current = createOpQueue()
+  const [pendingTaps, setPendingTaps] = useState(0)
+  const flushing = useRef(false)
 
   const applyRoundState = useCallback((roundState) => {
-    if (roundState && inflight.current === 0) dispatch({ type: 'ROUND_STATE_SET', payload: { roundState } })
+    if (roundState && inflight.current === 0 && queue.current.size === 0) dispatch({ type: 'ROUND_STATE_SET', payload: { roundState } })
   }, [dispatch])
 
   const refreshRounds = useCallback(async (gameId) => {
@@ -74,20 +80,59 @@ export function useGameManager(sqid) {
 
   const gameId = gameState.game?.id
 
-  // Add points to the open round. Optimistic; the server reply reconciles.
+  // Replay queued taps, then pull the authoritative state
+  const flushPending = useCallback(async () => {
+    if (flushing.current || queue.current.size === 0 || !gameId) return
+    flushing.current = true
+    try {
+      const { dropped, stalled } = await flushQueue(queue.current, (op) =>
+        gameAPI.addToDraft(sqid, gameId, op.playerId, op.delta, socket?.id || null, op.opId)
+      )
+      setPendingTaps(queue.current.size)
+      if (dropped.length > 0) {
+        setError(`${dropped.length} offline score change${dropped.length > 1 ? 's' : ''} could not be saved: ${dropped[0].error.message}`)
+      }
+      if (!stalled) await refreshRounds(gameId)
+    } catch (error) {
+      console.error('Failed to sync offline taps:', error)
+    } finally {
+      flushing.current = false
+    }
+  }, [sqid, gameId, socket, refreshRounds, setError])
+
+  // Add points to the open round. Optimistic. If the server cannot be reached the
+  // tap is queued with its opId and replays once the connection is back.
   const updatePlayerScore = useCallback(async (playerId, change) => {
+    const opId = gameAPI.newOpId()
     dispatch({ type: 'DRAFT_ADJUSTED', payload: { playerId, change } })
+
+    const enqueue = () => {
+      queue.current.push({ opId, gameId, playerId, delta: change, at: Date.now() })
+      setPendingTaps(queue.current.size)
+    }
+
+    // Behind earlier queued taps, or known offline: keep order by queueing
+    if (queue.current.size > 0 || !isConnected) {
+      enqueue()
+      flushPending()
+      return
+    }
+
     inflight.current += 1
     try {
-      const state = await gameAPI.addToDraft(sqid, gameId, playerId, change, socket?.id || null)
+      const state = await gameAPI.addToDraft(sqid, gameId, playerId, change, socket?.id || null, opId)
       inflight.current -= 1
       applyRoundState(state)
     } catch (error) {
       inflight.current -= 1
+      if (isNetworkError(error)) {
+        enqueue()
+        return
+      }
       refreshRounds(gameId).catch(() => {})
       throw error
     }
-  }, [sqid, gameId, socket, dispatch, applyRoundState, refreshRounds])
+  }, [sqid, gameId, socket, isConnected, dispatch, applyRoundState, refreshRounds, flushPending])
 
   // Run a round write that is not a tap, apply the reply, and pass errors up.
   const roundAction = useCallback(async (call) => {
@@ -248,10 +293,31 @@ export function useGameManager(sqid) {
     }
   }, [sqid, loadGame]) // Can include loadGame now since checkForWinner is stable
 
-  // Rejoining the room after a drop can miss broadcasts, so pull fresh state
+  // Taps saved from an earlier visit belong to this game only
   useEffect(() => {
-    if (isConnected && gameId) refreshRounds(gameId).catch(() => {})
-  }, [isConnected, gameId, refreshRounds])
+    if (gameId) setPendingTaps(queue.current.load(gameId))
+  }, [gameId])
+
+  // Back online: replay queued taps (then refresh). Rejoining the room after a
+  // drop can also miss broadcasts, so with nothing queued just pull fresh state.
+  useEffect(() => {
+    if (!isConnected || !gameId) return
+    if (queue.current.size > 0) flushPending()
+    else refreshRounds(gameId).catch(() => {})
+  }, [isConnected, gameId, refreshRounds, flushPending])
+
+  // The socket can look connected while the API is unreachable, so keep retrying
+  useEffect(() => {
+    if (pendingTaps === 0) return
+    const timer = setInterval(() => flushPending(), 5000)
+    return () => clearInterval(timer)
+  }, [pendingTaps, flushPending])
+
+  useEffect(() => {
+    const onOnline = () => flushPending()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [flushPending])
 
   // Set dealer function (moved from useDealerManager for convenience)
   const setDealer = useCallback(async (playerId) => {
@@ -296,6 +362,7 @@ export function useGameManager(sqid) {
     
     // Utilities
     isConnected,
+    pendingTaps,
     clearError: () => setError(null)
   }
 }

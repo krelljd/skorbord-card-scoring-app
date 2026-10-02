@@ -132,8 +132,8 @@ class GameAPI {
     return this.roundRequest(sqid, gameId, '', 'GET')
   }
 
-  addToDraft(sqid, gameId, playerId, delta, socketId = null) {
-    return this.roundRequest(sqid, gameId, '/current/scores', 'POST', { playerId, delta, socketId })
+  addToDraft(sqid, gameId, playerId, delta, socketId = null, opId = this.newOpId()) {
+    return this.roundRequest(sqid, gameId, '/current/scores', 'POST', { playerId, delta, socketId, opId })
   }
 
   setDraft(sqid, gameId, playerId, points, socketId = null) {
