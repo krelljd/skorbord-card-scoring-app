@@ -36,6 +36,9 @@ const getPlayerBgColor = (index) => {
  * @param {Object} player - Player object with id, name, score properties
  * @param {number} playerIndex - Index for color assignment (defaults to 0)
  * @param {boolean} isDealer - Whether this player is the dealer
+ * @param {boolean} partsMode - Cribbage: Play, Hand and Crib buttons replace + and -
+ * @param {{play:number,hand:number,crib:number}|null} draftParts - This round's points by part
+ * @param {Function} onPartClick - (playerId, part) when a part button is tapped
  * @param {boolean} showCrib - Mark the dealer as owner of this round's crib (cribbage)
  * @param {boolean} isWinner - Whether this player is the winner
  * @param {number} draft - Points entered so far in the open round
@@ -49,6 +52,9 @@ const PlayerCard = forwardRef(({
   playerIndex = 0, // Default to 0 if not provided
   isDealer,
   showCrib = false,
+  partsMode = false,
+  draftParts = null,
+  onPartClick,
   isWinner,
   draft = 0,
   onDraftClick,
@@ -206,8 +212,29 @@ const PlayerCard = forwardRef(({
           </div>
         </div>
 
+        {/* Cribbage: one button per part, each opens the right input */}
+        {!disabled && partsMode && (
+          <div className="flex gap-2 justify-center" data-testid="part-buttons">
+            {['play', 'hand', 'crib'].filter((part) => part !== 'crib' || isDealer).map((part) => {
+              const value = draftParts ? draftParts[part] : part === 'play' ? draft : 0
+              return (
+                <button
+                  key={part}
+                  type="button"
+                  className={`btn btn-lg ${playerColorClass} flex-1 flex-col h-auto py-2 leading-tight`}
+                  onClick={() => onPartClick?.(safePlayer.id, part)}
+                  aria-label={`${part} points for ${safePlayer.name}: ${value}`}
+                >
+                  <span className="capitalize">{part}</span>
+                  <span className="text-xs font-normal opacity-80">{value}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Score Controls */}
-        {!disabled && (
+        {!disabled && !partsMode && (
           <div className="flex gap-2 justify-center">
             {/* Subtract Points */}
             <button
