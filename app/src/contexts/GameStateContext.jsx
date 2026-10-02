@@ -10,10 +10,49 @@ export function gameStateReducer(state, action) {
         gameStats: action.payload.stats || [],
         dealer: action.payload.game?.dealer_id || null, // Set dealer from game
         winner: null,
+        roundState: null,
         scoreTallies: {},
         glowingCards: new Set(),
         loading: false,
         error: null
+      }
+    }
+    case 'ROUND_STATE_SET': {
+      // Authoritative round state from the server (fetch or round_update).
+      // Totals shown on cards are committed total + this round's draft.
+      const roundState = action.payload.roundState
+      const byPlayer = new Map(roundState.players.map(p => [p.player_id, p]))
+      const gameStats = state.gameStats.map(stat => {
+        const p = byPlayer.get(stat.player_id)
+        return p ? { ...stat, score: p.committed_total + p.draft } : stat
+      })
+      const confirmedId = roundState.game.winner_id
+      return {
+        ...state,
+        roundState,
+        gameStats,
+        game: state.game
+          ? { ...state.game, dealer_id: roundState.game.dealer_id, finalized: state.game.finalized || roundState.game.finalized }
+          : state.game,
+        dealer: roundState.game.dealer_id,
+        winner: confirmedId ? { player_id: confirmedId } : null
+      }
+    }
+    case 'DRAFT_ADJUSTED': {
+      // Optimistic tap: move one player's draft and total by the same amount
+      const { playerId, change } = action.payload
+      if (!state.roundState) return state
+      return {
+        ...state,
+        roundState: {
+          ...state.roundState,
+          players: state.roundState.players.map(p =>
+            p.player_id === playerId ? { ...p, draft: p.draft + change } : p
+          )
+        },
+        gameStats: state.gameStats.map(stat =>
+          stat.player_id === playerId ? { ...stat, score: stat.score + change } : stat
+        )
       }
     }
     case 'SCORE_UPDATED': {
@@ -148,6 +187,7 @@ export function GameStateProvider({ children, sqid }) {
   const [state, dispatch] = useReducer(gameStateReducer, {
     game: null,
     gameStats: [],
+    roundState: null,
     scoreTallies: {},
     glowingCards: new Set(),
     winner: null,

@@ -37,7 +37,8 @@ const getPlayerBgColor = (index) => {
  * @param {number} playerIndex - Index for color assignment (defaults to 0)
  * @param {boolean} isDealer - Whether this player is the dealer
  * @param {boolean} isWinner - Whether this player is the winner
- * @param {Object} tally - This player's score tally slice ({ total, timestamp }) or null
+ * @param {number} draft - Points entered so far in the open round
+ * @param {Function} onDraftClick - Opens the number pad for this player's round points
  * @param {Function} onScoreUpdate - Callback for score updates (playerId, newScore)
  * @param {Function} onDealerClick - Callback for dealer badge clicks
  * @param {boolean} disabled - Whether interactions are disabled
@@ -47,7 +48,8 @@ const PlayerCard = forwardRef(({
   playerIndex = 0, // Default to 0 if not provided
   isDealer,
   isWinner,
-  tally = null,
+  draft = 0,
+  onDraftClick,
   onScoreUpdate,
   onDealerClick,
   disabled = false
@@ -171,19 +173,21 @@ const PlayerCard = forwardRef(({
           </div>
           <div className="text-right relative">
                 <div className="flex items-center justify-end gap-3">
-              {/* Score Tally - Left of Score */}
-              {tally && (
-                <div
-                  key={tally.timestamp}
-                  className={`text-xl font-bold score-tally-animation ${
-                    tally.total > 0 ? 'text-success' : 'text-error'
-                  }`}
-                >
-                  {tally.total > 0 ? '+' : ''}
-                  {tally.total}
-                </div>
-              )}
-              
+              {/* This round's points: stays until the round is saved. Tap to type an exact value */}
+              <button
+                type="button"
+                className={`btn btn-sm btn-ghost px-2 text-xl font-bold ${
+                  draft > 0 ? 'text-success' : draft < 0 ? 'text-error' : 'text-base-content/40'
+                }`}
+                onClick={() => onDraftClick?.(safePlayer.id)}
+                disabled={disabled}
+                aria-label={`Points this round for ${safePlayer.name}: ${draft}. Tap to enter`}
+                data-testid="round-chip"
+              >
+                {draft > 0 ? '+' : ''}
+                {draft}
+              </button>
+
               {/* Main Score */}
               <div className={`text-2xl font-bold ${
                 isWinner ? 'text-success' : 

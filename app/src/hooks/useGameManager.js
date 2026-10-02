@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef } from 'react'
 import { useGameState, useGameDispatch, useGameActions } from '../contexts/GameStateContext.jsx'
 import { useConnection } from '../contexts/ConnectionContext.jsx'
 import gameAPI from '../services/gameAPI.js'
-import { shouldApplyRemoteTally } from './scoreSync.js'
-import { computeWinner } from './winnerLogic.js'
 
 /**
  * Modern hook that integrates game state management with API and WebSocket services
@@ -12,30 +10,22 @@ import { computeWinner } from './winnerLogic.js'
 export function useGameManager(sqid) {
   const gameState = useGameState()
   const dispatch = useGameDispatch()
-  const { updateScore, setLoading, setError, clearAllTallies } = useGameActions()
+  const { setLoading, setError } = useGameActions()
   const { socket, isConnected } = useConnection()
 
-  // Create a stable function reference for checking winners to avoid infinite loops
-  const checkForWinnerRef = useRef()
-  
-  // Update the function reference whenever the game state changes
-  checkForWinnerRef.current = (stats) => {
-    const gameWinner = computeWinner(gameState.game, stats)
+  // Round state: taps go into the open round's draft. Each write returns the
+  // full authoritative round state. While taps are in flight we hold off applying
+  // server state so a slow reply cannot move a total backwards under the player.
+  const inflight = useRef(0)
 
-    // Update winner state if detected
-    if (gameWinner && gameWinner.player_id !== gameState.winner?.player_id) {
-      dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
-    } else if (!gameWinner && gameState.winner) {
-      dispatch({ type: 'WINNER_CLEARED' })
-    }
-  }
+  const applyRoundState = useCallback((roundState) => {
+    if (roundState && inflight.current === 0) dispatch({ type: 'ROUND_STATE_SET', payload: { roundState } })
+  }, [dispatch])
 
-  // Stable wrapper function for checkForWinner
-  const checkForWinner = useCallback((stats) => {
-    if (checkForWinnerRef.current) {
-      checkForWinnerRef.current(stats)
-    }
-  }, []) // Empty dependency array for stable reference
+  const refreshRounds = useCallback(async (gameId) => {
+    if (!sqid || !gameId) return
+    applyRoundState(await gameAPI.getRounds(sqid, gameId))
+  }, [sqid, applyRoundState])
 
   // Load game data
   const loadGame = useCallback(async () => {
@@ -71,17 +61,8 @@ export function useGameManager(sqid) {
         }
       })
 
-      // Compute the winner from the data just fetched, not through
-      // checkForWinner: gameState.game (and therefore checkForWinnerRef)
-      // still reflects the *previous* game until the next render, so
-      // checkForWinner would observe stale state here.
-      const gameWinner = computeWinner(gameData, statsData || [])
-      if (gameWinner) {
-        dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
-      }
-
-      if (typeof clearAllTallies === 'function') {
-        clearAllTallies()
+      if (gameData?.id) {
+        await refreshRounds(gameData.id)
       }
     } catch (error) {
       console.error('Failed to load game:', error)
@@ -89,88 +70,56 @@ export function useGameManager(sqid) {
     } finally {
       setLoading(false)
     }
-  }, [sqid, dispatch, setLoading, setError]) // checkForWinner no longer used here
+  }, [sqid, dispatch, setLoading, setError, refreshRounds])
 
-  // Update player score (optimistic update + server sync)
-  // Single timer per player for rolling 3-second window
-  const playerTallyTimeouts = useRef({}) // Per-player timeout management
-  const localTallyAccumulator = useRef({}) // Track accumulated changes per player
-  
-  // Per-player timeout management for remote updates (moved to top level)
-  const remoteTallyTimeouts = useRef({})
-  
+  const gameId = gameState.game?.id
+
+  // Add points to the open round. Optimistic; the server reply reconciles.
   const updatePlayerScore = useCallback(async (playerId, change) => {
+    dispatch({ type: 'DRAFT_ADJUSTED', payload: { playerId, change } })
+    inflight.current += 1
     try {
-      // Optimistic update - immediate UI feedback
-      updateScore(playerId, change)
-      
-      // Accumulate tally locally
-      const currentAccumulation = localTallyAccumulator.current[playerId] || 0
-      const newAccumulation = currentAccumulation + change
-      localTallyAccumulator.current[playerId] = newAccumulation
-      
-      dispatch({
-        type: 'SCORE_TALLY_ACCUMULATE',
-        payload: {
-          playerId,
-          change
-        }
-      })
-      
-      // Clear existing timer for this player (rolling window)
-      if (playerTallyTimeouts.current[playerId]) {
-        clearTimeout(playerTallyTimeouts.current[playerId])
-      }
-      
-      // Set new 3-second timer for this specific player (rolling window)
-      playerTallyTimeouts.current[playerId] = setTimeout(() => {
-        // Reset the accumulator for this player
-        localTallyAccumulator.current[playerId] = 0
-        
-        // Clear only this player's tally from UI
-        dispatch({
-          type: 'SCORE_TALLY_CLEARED',
-          payload: { playerId }
-        })
-        
-        // Clean up the timeout reference
-        delete playerTallyTimeouts.current[playerId]
-      }, 3000)
-
-      // Get updated stats for winner checking
-      const updatedStats = gameState.gameStats.map(stat => 
-        stat.player_id === playerId 
-          ? { ...stat, score: stat.score + change }
-          : stat
-      )
-
-      // Check for winner after score update
-      checkForWinner(updatedStats)
-
-      // Sync with server. The server is the single broadcaster: it emits the
-      // authoritative score_update to the whole room (including us). We pass our
-      // socketId so the server echoes originSocketId and we can suppress our own
-      // tally re-animation. No client relay emit.
-      await gameAPI.updatePlayerScore(sqid, gameState.game?.id, playerId, change, socket?.id || null)
-
+      const state = await gameAPI.addToDraft(sqid, gameId, playerId, change, socket?.id || null)
+      inflight.current -= 1
+      applyRoundState(state)
     } catch (error) {
-      console.error('Failed to update score:', error)
-      // Revert optimistic update
-      updateScore(playerId, -change)
-      
-      // Also revert the accumulator
-      const currentAccumulation = localTallyAccumulator.current[playerId] || 0
-      localTallyAccumulator.current[playerId] = Math.max(0, currentAccumulation - change)
-      
-      // Clear the timeout for this player since the update failed
-      if (playerTallyTimeouts.current[playerId]) {
-        clearTimeout(playerTallyTimeouts.current[playerId])
-        delete playerTallyTimeouts.current[playerId]
-      }
-      
-      setError(`Failed to update score: ${error.message}`)
+      inflight.current -= 1
+      refreshRounds(gameId).catch(() => {})
+      throw error
     }
-  }, [sqid, socket, gameState.gameStats, updateScore, setError, checkForWinner, dispatch])
+  }, [sqid, gameId, socket, dispatch, applyRoundState, refreshRounds])
+
+  // Run a round write that is not a tap, apply the reply, and pass errors up.
+  const roundAction = useCallback(async (call) => {
+    try {
+      const state = await call()
+      applyRoundState(state)
+      return state
+    } catch (error) {
+      refreshRounds(gameId).catch(() => {})
+      throw error
+    }
+  }, [applyRoundState, refreshRounds, gameId])
+
+  const setDraftPoints = useCallback((playerId, points) =>
+    roundAction(() => gameAPI.setDraft(sqid, gameId, playerId, points, socket?.id || null)),
+  [roundAction, sqid, gameId, socket])
+
+  const nextRound = useCallback(({ winnerId = null } = {}) =>
+    roundAction(() => gameAPI.commitRound(sqid, gameId, {
+      expectedRound: gameState.roundState?.open_round ?? undefined,
+      winnerId,
+      socketId: socket?.id || null
+    })),
+  [roundAction, sqid, gameId, socket, gameState.roundState?.open_round])
+
+  const undoRound = useCallback(() =>
+    roundAction(() => gameAPI.undoCommit(sqid, gameId, socket?.id || null)),
+  [roundAction, sqid, gameId, socket])
+
+  const editRound = useCallback((roundNumber, playerId, points, expectedRevision) =>
+    roundAction(() => gameAPI.editRound(sqid, gameId, roundNumber, playerId, points, expectedRevision, socket?.id || null)),
+  [roundAction, sqid, gameId, socket])
 
   // Finalize game
   const finalizeGame = useCallback(async () => {
@@ -236,33 +185,11 @@ export function useGameManager(sqid) {
 
     const cleanupFunctions = []
 
-    // Apply the authoritative score_update broadcast directly — no refetch.
-    const handleScoreUpdate = (data) => {
+    // Authoritative round state from any device, including this one. The acting
+    // device already applied its own reply, so applying the broadcast again is a no-op.
+    const handleRoundUpdate = (data) => {
       if (data.sqid !== sqid) return
-
-      // Apply authoritative stats. This reconciles the acting client's
-      // optimistic value too (server wins on any drift).
-      dispatch({ type: 'GAME_STATS_SYNCED', payload: { stats: data.stats } })
-
-      // Winner derives from the authoritative stats (equals the server's
-      // winnerId, since it is the same data).
-      checkForWinner(data.stats)
-
-      // Animate the "+N" tally for events from other clients only.
-      if (shouldApplyRemoteTally(data, socket?.id || null)) {
-        dispatch({
-          type: 'SCORE_TALLY_SET',
-          payload: { playerId: data.playerId, change: data.change }
-        })
-
-        if (remoteTallyTimeouts.current[data.playerId]) {
-          clearTimeout(remoteTallyTimeouts.current[data.playerId])
-        }
-        remoteTallyTimeouts.current[data.playerId] = setTimeout(() => {
-          dispatch({ type: 'SCORE_TALLY_CLEARED', payload: { playerId: data.playerId } })
-          delete remoteTallyTimeouts.current[data.playerId]
-        }, 3000)
-      }
+      applyRoundState(data.state)
     }
 
     // Listen for player reorder from other clients
@@ -281,35 +208,10 @@ export function useGameManager(sqid) {
         // Don't update game state during reordering - it should already be loaded
         // The reorder WebSocket event should only update the stats, not the game
       }
-    }    // Listen for dealer change from other clients (legacy event)
+    }    // Dealer changed by hand on another device (a saved round sends its own round_update)
     const handleDealerChanged = (data) => {
-      if (data.sqid === sqid) {
-        // Fetch latest game and stats from API to ensure fresh state
-        const refreshGameData = async () => {
-          try {
-            const [gameData, statsData] = await Promise.all([
-              gameAPI.getGame(sqid),
-              gameAPI.getGameStats(sqid)
-            ])
-            dispatch({
-              type: 'GAME_LOADED',
-              payload: {
-                game: gameData,
-                stats: statsData
-              }
-            })
-
-            // Same stale-ref gap as loadGame: compute directly from the data
-            // just fetched, not through checkForWinner.
-            const gameWinner = computeWinner(gameData, statsData || [])
-            if (gameWinner) {
-              dispatch({ type: 'WINNER_DETECTED', payload: { winner: gameWinner } })
-            }
-          } catch (error) {
-            console.error('Failed to refresh game data after dealer_changed:', error)
-          }
-        }
-        refreshGameData()
+      if (data.sqid === sqid && data.dealer_id) {
+        dispatch({ type: 'DEALER_SET', payload: { playerId: data.dealer_id } })
       }
     }
 
@@ -325,25 +227,19 @@ export function useGameManager(sqid) {
       }
     }
 
-    socket.on('score_update', handleScoreUpdate)
+    socket.on('round_update', handleRoundUpdate)
     socket.on('player_order_updated', handlePlayerReorder)
     socket.on('dealer_changed', handleDealerChanged)
     socket.on('game:finalized', handleGameFinalized)
 
     return () => {
-      // Clean up remote tally timeouts
-      Object.values(remoteTallyTimeouts.current).forEach(timeoutId => {
-        clearTimeout(timeoutId)
-      })
-      remoteTallyTimeouts.current = {}
-      
       // Clean up WebSocket listeners
-      socket.off('score_update', handleScoreUpdate)
+      socket.off('round_update', handleRoundUpdate)
       socket.off('player_order_updated', handlePlayerReorder)
       socket.off('dealer_changed', handleDealerChanged)
       socket.off('game:finalized', handleGameFinalized)
     }
-  }, [socket, isConnected, sqid, dispatch, checkForWinner]) // checkForWinner now has stable ref
+  }, [socket, isConnected, sqid, dispatch, applyRoundState])
 
   // Load game on mount and sqid change only
   useEffect(() => {
@@ -352,16 +248,10 @@ export function useGameManager(sqid) {
     }
   }, [sqid, loadGame]) // Can include loadGame now since checkForWinner is stable
 
-  // Cleanup local player tally timeouts on unmount
+  // Rejoining the room after a drop can miss broadcasts, so pull fresh state
   useEffect(() => {
-    return () => {
-      // Clean up all local player tally timeouts
-      Object.values(playerTallyTimeouts.current).forEach(timeoutId => {
-        clearTimeout(timeoutId)
-      })
-      playerTallyTimeouts.current = {}
-    }
-  }, [])
+    if (isConnected && gameId) refreshRounds(gameId).catch(() => {})
+  }, [isConnected, gameId, refreshRounds])
 
   // Set dealer function (moved from useDealerManager for convenience)
   const setDealer = useCallback(async (playerId) => {
@@ -387,7 +277,7 @@ export function useGameManager(sqid) {
     // State
     game: gameState.game,
     gameStats: gameState.gameStats,
-    scoreTallies: gameState.scoreTallies,
+    roundState: gameState.roundState,
     glowingCards: gameState.glowingCards,
     winner: gameState.winner,
     loading: gameState.loading,
@@ -396,6 +286,10 @@ export function useGameManager(sqid) {
     // Actions
     loadGame,
     updatePlayerScore,
+    setDraftPoints,
+    nextRound,
+    undoRound,
+    editRound,
     finalizeGame,
     updatePlayerOrder,
     setDealer,

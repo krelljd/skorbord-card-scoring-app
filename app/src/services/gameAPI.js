@@ -114,6 +114,44 @@ class GameAPI {
     return response?.data
   }
 
+  // Rounds. Every write carries an opId so a retry after a lost response is
+  // applied once, and the server's reply is the full round state.
+  newOpId() {
+    return (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  }
+
+  async roundRequest(sqid, gameId, path, method, body = {}) {
+    const response = await this.request(`/api/${sqid}/games/${gameId}/rounds${path}`, {
+      method,
+      body: method === 'GET' ? undefined : JSON.stringify({ opId: this.newOpId(), ...body })
+    })
+    return response?.data
+  }
+
+  getRounds(sqid, gameId) {
+    return this.roundRequest(sqid, gameId, '', 'GET')
+  }
+
+  addToDraft(sqid, gameId, playerId, delta, socketId = null) {
+    return this.roundRequest(sqid, gameId, '/current/scores', 'POST', { playerId, delta, socketId })
+  }
+
+  setDraft(sqid, gameId, playerId, points, socketId = null) {
+    return this.roundRequest(sqid, gameId, `/current/scores/${playerId}`, 'PUT', { points, socketId })
+  }
+
+  commitRound(sqid, gameId, { expectedRound, winnerId = null, socketId = null }) {
+    return this.roundRequest(sqid, gameId, '/commit', 'POST', { expectedRound, winnerId, socketId })
+  }
+
+  undoCommit(sqid, gameId, socketId = null) {
+    return this.roundRequest(sqid, gameId, '/undo-commit', 'POST', { socketId })
+  }
+
+  editRound(sqid, gameId, roundNumber, playerId, points, expectedRevision, socketId = null) {
+    return this.roundRequest(sqid, gameId, `/${roundNumber}/scores/${playerId}`, 'PUT', { points, expectedRevision, socketId })
+  }
+
   // Finalize game - use correct endpoint and method
   async finalizeGame(sqid, gameId = null, winnerId = null) {
     if (!gameId) {

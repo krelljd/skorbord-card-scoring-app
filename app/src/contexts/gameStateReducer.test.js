@@ -52,3 +52,35 @@ describe('GAME_LOADED', () => {
     expect(next.dealer).toBe('p2')
   })
 })
+
+describe('round state', () => {
+  const roundState = {
+    game: { id: 'g1', dealer_id: 'p2', finalized: false, winner_id: null },
+    players: [
+      { player_id: 'p1', committed_total: 10, draft: 3 },
+      { player_id: 'p2', committed_total: 4, draft: 0 }
+    ],
+    rounds: [],
+    open_round: 2
+  }
+
+  it('ROUND_STATE_SET shows committed plus draft and takes dealer and winner from the server', () => {
+    const next = gameStateReducer(baseState, { type: 'ROUND_STATE_SET', payload: { roundState } })
+    expect(next.gameStats[0].score).toBe(13)
+    expect(next.game.dealer_id).toBe('p2')
+    expect(next.winner).toBeNull()
+
+    const won = gameStateReducer(next, {
+      type: 'ROUND_STATE_SET',
+      payload: { roundState: { ...roundState, game: { ...roundState.game, winner_id: 'p1' } } }
+    })
+    expect(won.winner).toEqual({ player_id: 'p1' })
+  })
+
+  it('DRAFT_ADJUSTED moves the draft and the total together', () => {
+    const set = gameStateReducer(baseState, { type: 'ROUND_STATE_SET', payload: { roundState } })
+    const next = gameStateReducer(set, { type: 'DRAFT_ADJUSTED', payload: { playerId: 'p1', change: -2 } })
+    expect(next.roundState.players[0].draft).toBe(1)
+    expect(next.gameStats[0].score).toBe(11)
+  })
+})

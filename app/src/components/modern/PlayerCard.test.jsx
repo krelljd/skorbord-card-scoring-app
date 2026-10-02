@@ -23,13 +23,13 @@ const playerB = { id: 'b', name: 'Bob', score: 2 }
 const noop = () => {}
 
 function Harness() {
-  const [tallyA, setTallyA] = useState(null)
+  const [draftA, setDraftA] = useState(0)
   return (
     <div>
-      <button onClick={() => setTallyA({ total: 5, timestamp: 1 })}>bump-a</button>
-      <PlayerCard player={playerA} playerIndex={0} tally={tallyA}
+      <button onClick={() => setDraftA(5)}>bump-a</button>
+      <PlayerCard player={playerA} playerIndex={0} draft={draftA}
         isDealer={false} isWinner={false} onScoreUpdate={noop} onDealerClick={noop} />
-      <PlayerCard player={playerB} playerIndex={1} tally={null}
+      <PlayerCard player={playerB} playerIndex={1} draft={0}
         isDealer={false} isWinner={false} onScoreUpdate={noop} onDealerClick={noop} />
     </div>
   )
@@ -40,7 +40,7 @@ describe('PlayerCard redraw isolation', () => {
     usePointerInteraction.mockClear()
   })
 
-  it('re-renders only the card whose tally changed', () => {
+  it('re-renders only the card whose draft changed', () => {
     render(<Harness />)
     const afterMount = usePointerInteraction.mock.calls.length
     fireEvent.click(screen.getByText('bump-a'))
@@ -48,9 +48,9 @@ describe('PlayerCard redraw isolation', () => {
     expect(afterClick - afterMount).toBe(2)
   })
 
-  it('renders the tally value from props with no GameState provider', () => {
+  it('renders the round chip from props with no GameState provider', () => {
     render(
-      <PlayerCard player={playerA} playerIndex={0} tally={{ total: 7, timestamp: 1 }}
+      <PlayerCard player={playerA} playerIndex={0} draft={7}
         isDealer={false} isWinner={false} onScoreUpdate={noop} onDealerClick={noop} />
     )
     expect(screen.getByText('+7')).toBeInTheDocument()
