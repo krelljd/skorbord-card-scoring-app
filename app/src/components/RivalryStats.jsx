@@ -46,7 +46,11 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, on
     { key: 'max_loss_margin', label: 'Largest Loss', className: 'text-error' },
     { key: 'min_loss_margin', label: 'Smallest Loss', className: 'text-warning' },
     { key: 'last_10_results', label: 'Last 10', className: 'font-mono' },
+    { key: 'avg_round', label: 'Average Round', className: 'text-primary' },
+    { key: 'best_round', label: 'Best Round', className: 'text-success' },
+    { key: 'worst_round', label: 'Worst Round', className: 'text-error' },
   ];
+  const roundStats = rivalryDetails?.round_stats || {};
 
   // Function to handle rivalry selection
   const selectRivalry = async (rivalry) => {
@@ -159,7 +163,20 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, on
                               let value = stats[field.key];
                               let desc = '';
                               
-                              if (field.key === 'win_rate') {
+                              if (field.key === 'avg_round' || field.key === 'best_round' || field.key === 'worst_round') {
+                                const rs = roundStats[player.id]?.[gt.id || gt.game_type_id]
+                                if (!rs) {
+                                  value = 'N/A'
+                                  desc = field.key === 'avg_round' ? 'No saved rounds yet' : ''
+                                } else if (field.key === 'avg_round') {
+                                  value = rs.avg_round
+                                  desc = `${rs.rounds_played} rounds`
+                                } else {
+                                  const r = rs[field.key]
+                                  value = r.points
+                                  desc = r.date ? new Date(r.date).toLocaleDateString() : ''
+                                }
+                              } else if (field.key === 'win_rate') {
                                 const totalGames = Math.max(0, Number(stats.total_games) || 0);
                                 const wins = Math.max(0, Number(stats.wins) || 0);
                                 const winRate = totalGames > 0 ? Math.max(0, Math.min(100, Math.round((wins / totalGames) * 100))) : 0;

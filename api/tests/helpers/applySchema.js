@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { upSection } from '../../db/migrations/migrationRunner.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -18,10 +19,6 @@ export async function applySchema(db) {
 
   for (const file of files) {
     const sql = fs.readFileSync(join(migrationsDir, file), 'utf8');
-    const upSql = sql.split('-- +migrate Down')[0];
-    const statements = upSql.split(';').map((s) => s.trim()).filter(Boolean);
-    for (const statement of statements) {
-      await db.run(statement);
-    }
+    await db.exec(upSection(sql));
   }
 }

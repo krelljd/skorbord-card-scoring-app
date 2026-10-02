@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import fs from 'fs'
 
 // Point the singleton at a throwaway DB under api/ before importing it.
-process.env.DATABASE_URL = 'sqlite:///tmp-test/hardening-test.db'
+process.env.DATABASE_URL = 'sqlite:///tmp-test-database/hardening-test.db'
 const { default: db } = await import('../db/database.js')
 
 after(async () => {
   await db.close()
-  fs.rmSync(new URL('../tmp-test', import.meta.url), { recursive: true, force: true })
+  fs.rmSync(new URL('../tmp-test-database', import.meta.url), { recursive: true, force: true })
 })
 
 test('concurrent first queries all see a fully-initialized handle', async () => {

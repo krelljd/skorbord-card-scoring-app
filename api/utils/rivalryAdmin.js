@@ -3,7 +3,7 @@ import { NotFoundError } from '../middleware/errorHandler.js';
 /**
  * Deletes a rivalry and everything played under it: its games, those
  * games' stats, and (via ON DELETE CASCADE) rivalry_players,
- * rivalry_game_types, rivalry_stats, and rivalry_player_stats.
+ * rivalry_game_types, and rivalry_player_stats.
  * games.rivalry_id has no cascade, so games/stats must be deleted
  * explicitly before the rivalry row itself.
  * @param {import('../db/database.js').default} db

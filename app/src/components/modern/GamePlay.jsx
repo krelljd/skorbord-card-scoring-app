@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
@@ -10,6 +10,11 @@ import { useLoading } from '../../hooks/useUIState.js'
 import { parseError } from '../../utils/errorUtils.js'
 import { LoadingSpinner } from '../Loading.jsx'
 import ReorderablePlayerCard from './ReorderablePlayerCard.jsx'
+import NumberPad from './NumberPad.jsx'
+import RoundHistory from './RoundHistory.jsx'
+import { computeWinner } from '../../hooks/winnerLogic.js'
+
+const UNDO_WINDOW_MS = 5000
 
 /**
  * Modern GamePlay component using:
@@ -36,6 +41,13 @@ const GamePlay = ({
   // Local UI state
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [dealerModalOpen, setDealerModalOpen] = useState(false)
+  const [padPlayerId, setPadPlayerId] = useState(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [winnerPrompt, setWinnerPrompt] = useState(null)
+  const [undoable, setUndoable] = useState(null) // { roundNumber } for a few seconds after saving
+  const undoTimer = useRef(null)
+
+  useEffect(() => () => clearTimeout(undoTimer.current), [])
 
   // Drag and drop sensors with iOS touch optimization
   const sensors = useSensors(
@@ -84,6 +96,79 @@ const GamePlay = ({
       await gameManager.updatePlayerScore(playerId, change)
     } catch (error) {
       showError(`Failed to update score: ${parseError(error).message}`)
+    }
+  }, [gameManager, showError])
+
+  // Round state from the server: per-player draft for the open round
+  const { roundState } = gameManager
+  const draftByPlayer = useMemo(() => {
+    const map = {}
+    for (const p of roundState?.players || []) map[p.player_id] = p.draft
+    return map
+  }, [roundState])
+
+  // Who would win if this round were saved now (the server applies the same rule)
+  const prospectiveWinner = useMemo(() => {
+    if (!roundState) return null
+    return computeWinner(
+      roundState.game,
+      roundState.players.map(p => ({ player_id: p.player_id, score: p.committed_total + p.draft }))
+    )
+  }, [roundState])
+
+  const openPad = useCallback((playerId) => {
+    if (!gameManager.isConnected) {
+      showError('Reconnect to type an exact value. Taps still work offline.')
+      return
+    }
+    setPadPlayerId(playerId)
+  }, [gameManager.isConnected, showError])
+
+  const handlePadSave = useCallback(async (points) => {
+    const playerId = padPlayerId
+    setPadPlayerId(null)
+    try {
+      await gameManager.setDraftPoints(playerId, points)
+    } catch (error) {
+      showError(`Failed to set round points: ${parseError(error).message}`)
+    }
+  }, [gameManager, padPlayerId, showError])
+
+  const saveRound = useCallback(async (winnerId = null) => {
+    setWinnerPrompt(null)
+    try {
+      const state = await gameManager.nextRound({ winnerId })
+      clearTimeout(undoTimer.current)
+      setUndoable({ roundNumber: state.open_round - 1 })
+      undoTimer.current = setTimeout(() => setUndoable(null), UNDO_WINDOW_MS)
+    } catch (error) {
+      showError(`Failed to save round: ${parseError(error).message}`)
+    }
+  }, [gameManager, showError])
+
+  const handleNextRound = useCallback(() => {
+    if (prospectiveWinner && prospectiveWinner.player_id !== gameState.winner?.player_id) {
+      setWinnerPrompt(prospectiveWinner.player_id)
+      return
+    }
+    saveRound()
+  }, [prospectiveWinner, gameState.winner, saveRound])
+
+  const handleUndoRound = useCallback(async () => {
+    clearTimeout(undoTimer.current)
+    setUndoable(null)
+    try {
+      await gameManager.undoRound()
+    } catch (error) {
+      showError(`Could not undo: ${parseError(error).message}`)
+    }
+  }, [gameManager, showError])
+
+  const handleEditRound = useCallback(async (roundNumber, playerId, points, revision) => {
+    try {
+      await gameManager.editRound(roundNumber, playerId, points, revision)
+    } catch (error) {
+      showError(`Failed to correct score: ${parseError(error).message}`)
     }
   }, [gameManager, showError])
 
@@ -296,9 +381,13 @@ const GamePlay = ({
       )}
 
       {/* Connection warning - changes may not be saved while offline */}
-      {!gameManager.isConnected && (
+      {(!gameManager.isConnected || gameManager.pendingTaps > 0) && (
         <div className="alert alert-warning">
-          <span>⚠️ Reconnecting — score changes may not be saved.</span>
+          <span>
+            {gameManager.isConnected
+              ? `Syncing ${gameManager.pendingTaps} score change${gameManager.pendingTaps > 1 ? 's' : ''}…`
+              : `Offline — taps are kept on this device${gameManager.pendingTaps > 0 ? ` (${gameManager.pendingTaps} waiting)` : ''} and sent when the connection returns.`}
+          </span>
         </div>
       )}
 
@@ -328,7 +417,8 @@ const GamePlay = ({
                       gamesWon: playerStat.games_won
                     }}
                     playerIndex={index}
-                    tally={gameState.scoreTallies[playerStat.player_id] || null}
+                    draft={draftByPlayer[playerStat.player_id] || 0}
+                    onDraftClick={openPad}
                     isReorderMode={gameState.isReorderMode}
                     onScoreUpdate={(playerId, change) => {
                       // PlayerCard now passes change directly
@@ -337,7 +427,7 @@ const GamePlay = ({
                     isDealer={gameManager.game?.dealer_id === playerStat.player_id}
                     isWinner={isWinner}
                     onDealerClick={cycleDealer}
-                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode || !gameManager.isConnected}
+                    disabled={isFinalized || gameManager.loading || gameState.isReorderMode}
                   />
                 );
               })}
@@ -348,6 +438,77 @@ const GamePlay = ({
         <div className="card bg-base-200 shadow-sm">
           <div className="card-body text-center">
             <p className="text-base-content/70">No players in this game yet.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Round bar: save the round, see history */}
+      {!isFinalized && sortedPlayers.length > 0 && !gameState.isReorderMode && (
+        <div className="sticky bottom-3 z-20 flex gap-2">
+          <button
+            className="btn btn-outline bg-base-100"
+            onClick={() => setShowHistory(true)}
+            aria-label="Score history"
+          >
+            History
+          </button>
+          <button
+            className="btn btn-primary flex-1"
+            onClick={handleNextRound}
+            disabled={!roundState || !gameManager.isConnected || gameManager.pendingTaps > 0}
+          >
+            Next round{roundState?.open_round ? ` (${roundState.open_round})` : ''}
+          </button>
+        </div>
+      )}
+      {isFinalized && sortedPlayers.length > 0 && (
+        <button className="btn btn-outline btn-block" onClick={() => setShowHistory(true)}>
+          Score history
+        </button>
+      )}
+
+      {undoable && (
+        <div className="toast toast-center toast-bottom z-50 mb-20">
+          <div className="alert alert-info">
+            <span>Round {undoable.roundNumber} saved</span>
+            <button className="btn btn-sm" onClick={handleUndoRound}>Undo</button>
+          </div>
+        </div>
+      )}
+
+      {padPlayerId && (
+        <NumberPad
+          title="Points this round"
+          subtitle={sortedPlayers.find(p => p.player_id === padPlayerId)?.player_name}
+          initial={draftByPlayer[padPlayerId] || 0}
+          onSave={handlePadSave}
+          onCancel={() => setPadPlayerId(null)}
+        />
+      )}
+
+      {showHistory && roundState && (
+        <RoundHistory
+          roundState={roundState}
+          canEdit={!isFinalized && gameManager.isConnected}
+          onEdit={handleEditRound}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+
+      {winnerPrompt && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg text-success">
+              {sortedPlayers.find(p => p.player_id === winnerPrompt)?.player_name} wins?
+            </h3>
+            <p className="py-4">
+              This round puts them over the line. Confirm them as the winner, or save the round and keep playing.
+            </p>
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setWinnerPrompt(null)}>Cancel</button>
+              <button className="btn" onClick={() => saveRound()}>Keep playing</button>
+              <button className="btn btn-success" onClick={() => saveRound(winnerPrompt)}>Confirm winner</button>
+            </div>
           </div>
         </div>
       )}

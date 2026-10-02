@@ -1,15 +1,32 @@
 import fs from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// The migrations that existed before the baseline. A database that has applied
+// all of them already has the baseline schema, so the baseline is recorded as
+// applied for it without being run.
+export const BASELINE_MIGRATION = '001_baseline.sql';
+export const LEGACY_MIGRATIONS = ['001_initial_schema.sql', '002_add_player_order.sql'];
+
+const DOWN_MARKER = '-- +migrate Down';
+
+/**
+ * Returns only the "Up" part of a migration file.
+ */
+export function upSection(sql) {
+  const idx = sql.indexOf(DOWN_MARKER);
+  return idx === -1 ? sql : sql.slice(0, idx);
+}
 
 /**
  * Migration runner for SQLite database
  */
 export class MigrationRunner {
-  constructor(db) {
+  constructor(db, { migrationsDir = __dirname } = {}) {
     this.db = db;
+    this.migrationsDir = migrationsDir;
   }
 
   async createMigrationTable() {
@@ -38,41 +55,47 @@ export class MigrationRunner {
   }
 
   async getMigrationFiles() {
-    const migrationsDir = __dirname;
-    const files = fs.readdirSync(migrationsDir)
+    return fs.readdirSync(this.migrationsDir)
       .filter(file => file.endsWith('.sql'))
       .sort();
-    
-    return files;
+  }
+
+  /**
+   * Databases created before the baseline recorded 001_initial_schema.sql and
+   * 002_add_player_order.sql. Mark the baseline as applied for them so it is
+   * never run on top of existing tables. A database with only some of the
+   * legacy migrations cannot be baselined safely and is rejected.
+   */
+  async baselineLegacyDatabase(applied) {
+    if (applied.includes(BASELINE_MIGRATION)) return applied;
+
+    const legacyApplied = LEGACY_MIGRATIONS.filter(name => applied.includes(name));
+    if (legacyApplied.length === 0) return applied;
+
+    if (legacyApplied.length !== LEGACY_MIGRATIONS.length) {
+      throw new Error(
+        `Database applied only part of the legacy migrations (${legacyApplied.join(', ')}). ` +
+        `Bring it to ${LEGACY_MIGRATIONS[LEGACY_MIGRATIONS.length - 1]} before upgrading.`
+      );
+    }
+
+    console.log(`📌 Existing database detected; recording ${BASELINE_MIGRATION} as applied`);
+    await this.markMigrationAsApplied(BASELINE_MIGRATION);
+    return [...applied, BASELINE_MIGRATION];
   }
 
   async runMigration(filename) {
-    const filePath = join(__dirname, filename);
-    const sql = fs.readFileSync(filePath, 'utf8');
+    const sql = upSection(fs.readFileSync(join(this.migrationsDir, filename), 'utf8'));
 
     console.log(`🔄 Running migration: ${filename}`);
 
-    // Special handling for migrations that depend on tables
-    if (filename === '002_add_custom_win_conditions.sql') {
-      // Check if games table exists
-      const gamesTable = await this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='games';");
-      if (!gamesTable || gamesTable.length === 0) {
-        console.warn('⚠️ Skipping migration 002_add_custom_win_conditions.sql: games table does not exist');
-        return;
-      }
-    }
-
-    // Wrap migration in a transaction
+    // Wrap migration in a transaction. exec() runs the whole file, so
+    // semicolons inside strings, comments, or triggers are handled by SQLite.
     try {
       await this.db.run('BEGIN TRANSACTION');
-      const statements = sql.split(';').filter(stmt => stmt.trim());
-      for (const statement of statements) {
-        if (statement.trim()) {
-          await this.db.run(statement.trim());
-        }
-      }
-      await this.db.run('COMMIT');
+      await this.db.exec(sql);
       await this.markMigrationAsApplied(filename);
+      await this.db.run('COMMIT');
       console.log(`✅ Migration completed: ${filename}`);
     } catch (err) {
       await this.db.run('ROLLBACK');
@@ -86,7 +109,8 @@ export class MigrationRunner {
     // Create migrations table if it doesn't exist
     await this.createMigrationTable();
     // Get applied and pending migrations
-    const appliedMigrations = await this.getAppliedMigrations();
+    let appliedMigrations = await this.getAppliedMigrations();
+    appliedMigrations = await this.baselineLegacyDatabase(appliedMigrations);
     const migrationFiles = await this.getMigrationFiles();
     console.log('🗂 Migration files found:', migrationFiles);
     console.log('📝 Applied migrations:', appliedMigrations);
@@ -116,7 +140,7 @@ export async function runMigrations(db) {
 // Add top-level script runner for CLI usage
 
 // ES module entry point check
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   console.log('🚀 migrationRunner.js starting...');
   import('../database.js').then(async ({ default: db }) => {
     try {

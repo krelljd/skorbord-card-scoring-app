@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs'
 
-process.env.DATABASE_URL = 'sqlite:///tmp-test/rivalry-admin-test.db'
+process.env.DATABASE_URL = 'sqlite:///tmp-test-rivalryAdmin/rivalry-admin-test.db'
 const { default: db } = await import('../db/database.js')
 const { applySchema } = await import('./helpers/applySchema.js')
 const { deleteRivalryCascade } = await import('../utils/rivalryAdmin.js')
@@ -13,10 +13,6 @@ async function seedRivalry(db, { sqidId, rivalryId, playerIds, gameTypeId, gameI
     await db.run('INSERT INTO rivalry_players (rivalry_id, player_id) VALUES (?, ?)', [rivalryId, playerId])
   }
   await db.run('INSERT INTO rivalry_game_types (rivalry_id, game_type_id) VALUES (?, ?)', [rivalryId, gameTypeId])
-  await db.run(
-    'INSERT INTO rivalry_stats (id, rivalry_id, game_type_id, total_games) VALUES (?, ?, ?, 1)',
-    [`${rivalryId}-stats`, rivalryId, gameTypeId]
-  )
   for (const playerId of playerIds) {
     await db.run(
       'INSERT INTO rivalry_player_stats (id, rivalry_id, player_id, game_type_id, total_games) VALUES (?, ?, ?, ?, 1)',
@@ -53,7 +49,7 @@ before(async () => {
 
 after(async () => {
   await db.close()
-  fs.rmSync(new URL('../tmp-test', import.meta.url), { recursive: true, force: true })
+  fs.rmSync(new URL('../tmp-test-rivalryAdmin', import.meta.url), { recursive: true, force: true })
 })
 
 test('throws NotFoundError for a rivalry that does not belong to the sqid', async () => {
@@ -71,7 +67,6 @@ test('deletes the rivalry, its games/stats, and its cascaded rows, leaving other
   assert.deepEqual(await db.query('SELECT id FROM stats WHERE game_id = ?', ['game-target']), [])
   assert.deepEqual(await db.query('SELECT * FROM rivalry_players WHERE rivalry_id = ?', ['riv-target']), [])
   assert.deepEqual(await db.query('SELECT * FROM rivalry_game_types WHERE rivalry_id = ?', ['riv-target']), [])
-  assert.deepEqual(await db.query('SELECT * FROM rivalry_stats WHERE rivalry_id = ?', ['riv-target']), [])
   assert.deepEqual(await db.query('SELECT * FROM rivalry_player_stats WHERE rivalry_id = ?', ['riv-target']), [])
 
   assert.ok(await db.get('SELECT id FROM rivalries WHERE id = ?', ['riv-keep']))
