@@ -56,7 +56,7 @@ describe('PlayerCard redraw isolation', () => {
     expect(screen.getByText('+7')).toBeInTheDocument()
   })
 
-  it('cribbage cards show Play, Hand and Crib instead of + and -, and Crib only for the dealer', () => {
+  it('cribbage cards show Hand and Crib instead of + and -, and Crib only for the dealer', () => {
     const onPartClick = vi.fn()
     const parts = { play: 4, hand: 12, crib: 0 }
     const { rerender } = render(
@@ -73,8 +73,9 @@ describe('PlayerCard redraw isolation', () => {
         isDealer isWinner={false} onScoreUpdate={noop} onDealerClick={noop} onPartClick={onPartClick} />
     )
     fireEvent.click(screen.getByLabelText('crib points for Alice: 0'))
-    fireEvent.click(screen.getByLabelText('play points for Alice: 4'))
-    expect(onPartClick.mock.calls).toEqual([['a', 'crib'], ['a', 'play']])
+    fireEvent.click(screen.getByLabelText('hand points for Alice: 12'))
+    expect(screen.queryByLabelText(/^play points/)).toBeNull()
+    expect(onPartClick.mock.calls).toEqual([['a', 'crib'], ['a', 'hand']])
   })
 
   it('other games keep + and -', () => {

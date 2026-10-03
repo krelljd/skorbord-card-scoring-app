@@ -13,6 +13,7 @@ import ReorderablePlayerCard from './ReorderablePlayerCard.jsx'
 import NumberPad from './NumberPad.jsx'
 import RoundHistory from './RoundHistory.jsx'
 import PartSheet from './PartSheet.jsx'
+import PlaySheet from './PlaySheet.jsx'
 import { recapLine, noHandPoints, PART_LABELS, isValidPartValue } from '../../utils/cribbage.js'
 import { computeWinner } from '../../hooks/winnerLogic.js'
 
@@ -44,6 +45,7 @@ const GamePlay = ({
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false)
   const [dealerModalOpen, setDealerModalOpen] = useState(false)
   const [padPlayerId, setPadPlayerId] = useState(null)
+  const [showPlay, setShowPlay] = useState(false) // shared play (pegging) sheet for all players
   const [partPad, setPartPad] = useState(null) // { playerId, part }: hand or crib typed straight from a card button
   const [totalOnly, setTotalOnly] = useState(false) // plain total pad instead of the part sheet
   const [emptyHandPrompt, setEmptyHandPrompt] = useState(false)
@@ -133,13 +135,8 @@ const GamePlay = ({
     setPadPlayerId(playerId)
   }, [gameManager.isConnected, showError])
 
-  // Cribbage card buttons: Play opens the sheet with the pegging events, Hand and Crib the pad
+  // Cribbage card buttons: Hand and Crib open the number pad (play has its own shared sheet)
   const openPart = useCallback((playerId, part) => {
-    if (part === 'play') {
-      setTotalOnly(false)
-      setPadPlayerId(playerId)
-      return
-    }
     if (!gameManager.isConnected) {
       showError('Reconnect to type an exact value. Taps still work offline.')
       return
@@ -500,6 +497,15 @@ const GamePlay = ({
           >
             History
           </button>
+          {tracksParts && (
+            <button
+              className="btn btn-secondary bg-base-100 text-base-content"
+              onClick={() => setShowPlay(true)}
+              disabled={!roundState}
+            >
+              Play
+            </button>
+          )}
           <button
             className="btn btn-primary flex-1"
             onClick={() => handleNextRound()}
@@ -545,6 +551,16 @@ const GamePlay = ({
           />
         )
       })()}
+
+      {showPlay && tracksParts && roundState && (
+        <PlaySheet
+          players={roundState.players}
+          dealerId={roundState.game.dealer_id}
+          target={roundState.game.win_condition_type === 'win' ? roundState.game.win_condition_value : null}
+          onAdd={(playerId, delta) => handleScoreUpdate(playerId, delta)}
+          onClose={() => setShowPlay(false)}
+        />
+      )}
 
       {partPad && (() => {
         const p = roundState.players.find(x => x.player_id === partPad.playerId)
