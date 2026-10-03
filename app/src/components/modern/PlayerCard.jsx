@@ -36,7 +36,7 @@ const getPlayerBgColor = (index) => {
  * @param {Object} player - Player object with id, name, score properties
  * @param {number} playerIndex - Index for color assignment (defaults to 0)
  * @param {boolean} isDealer - Whether this player is the dealer
- * @param {boolean} partsMode - Cribbage: Play, Hand and Crib buttons replace + and -
+ * @param {boolean} partsMode - Cribbage: Hand and Crib buttons replace + and - (play has its own shared sheet)
  * @param {{play:number,hand:number,crib:number}|null} draftParts - This round's points by part
  * @param {Function} onPartClick - (playerId, part) when a part button is tapped
  * @param {boolean} showCrib - Mark the dealer as owner of this round's crib (cribbage)
@@ -212,10 +212,10 @@ const PlayerCard = forwardRef(({
           </div>
         </div>
 
-        {/* Cribbage: one button per part, each opens the right input */}
+        {/* Cribbage: Hand and Crib buttons, each opens the number pad */}
         {!disabled && partsMode && (
           <div className="flex gap-2 justify-center" data-testid="part-buttons">
-            {['play', 'hand', 'crib'].filter((part) => part !== 'crib' || isDealer).map((part) => {
+            {['hand', 'crib'].filter((part) => part !== 'crib' || isDealer).map((part) => {
               const value = draftParts ? draftParts[part] : part === 'play' ? draft : 0
               return (
                 <button
