@@ -100,8 +100,11 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
 
   return (
     <div className="modal modal-open" role="dialog" aria-label="Score history">
-      <div className="modal-box max-w-3xl">
-        <div className="flex items-center justify-between mb-3">
+      {/* daisyUI caps the box at 100vh, which on iPhone Safari is taller than the visible area, so the top
+          (title, toggle, Close) ends up off screen and cannot be scrolled to. Cap it at the dynamic viewport
+          instead, keep the header fixed and scroll only the body. */}
+      <div className="modal-box max-w-3xl flex flex-col p-0 max-h-[calc(100dvh-1.5rem)]">
+        <div className="flex items-center justify-between px-4 sm:px-6 pt-4 pb-3 border-b border-base-300 shrink-0">
           <h3 className="font-bold text-lg">Score history</h3>
           <div className="flex items-center gap-2">
             {tracksParts && (
@@ -122,6 +125,7 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
           </div>
         </div>
 
+        <div className="overflow-y-auto overscroll-contain px-4 sm:px-6 py-4 flex-1 min-h-0">
         {rows.length === 0 ? (
           <p className="text-base-content/70 py-6 text-center">
             No saved rounds yet. Tap Next round to save the first one.
@@ -201,6 +205,7 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
             Small number is the running total. • marks a corrected score.
           </p>
         )}
+        </div>
       </div>
 
       {editing && sheetParts && (
