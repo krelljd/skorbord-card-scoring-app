@@ -154,9 +154,9 @@ const PlayerCard = forwardRef(({
       role="region"
       aria-label={`Player ${safePlayer.name}${isDealer ? ' (Dealer)' : ''}${isWinner ? ' (Winner)' : ''}`}
     >
-      <div className="card-body p-4">
+      <div className="card-body p-3">
         {/* Player Header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <h3 className={`text-lg font-bold ${isWinner ? 'text-success' : 'text-base-content'}`}>
               {safePlayer.name}
