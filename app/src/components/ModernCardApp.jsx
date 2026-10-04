@@ -113,17 +113,17 @@ const ModernCardApp = () => {
         <GameStateProvider sqid={sqid}>
           <div className="mobile-container-modern">
             {/* Header with connection status and navigation */}
-            <header className="card bg-base-100 shadow-lg mb-4">
-              <div className="card-body p-4">
+            <header className="card bg-base-100 shadow-lg mb-2">
+              <div className="card-body p-3">
                 <div className="flex items-center justify-between">
-                  <h1 className="text-2xl font-bold text-base-content">
+                  <h1 className="text-xl font-bold text-base-content">
                     Skorbord
                   </h1>
                   <ConnectionStatus />
                 </div>
                 
                 {/* Navigation - Always visible */}
-                <div className="flex gap-2 mt-3 flex-wrap">
+                <div className="flex gap-2 mt-1 flex-wrap">
                   <button
                     className={`btn btn-sm ${currentView === 'playing' ? 'btn-primary' : 'btn-outline'}`}
                     onClick={() => setCurrentView('playing')}

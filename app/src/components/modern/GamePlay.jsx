@@ -353,13 +353,13 @@ const GamePlay = ({
   const isFinalized = game.finalized
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Game Header */}
       <div className="card bg-base-200 shadow-sm">
-        <div className="card-body">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="card-body p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h1 className="card-title text-2xl">
+              <h1 className="card-title text-xl">
                 {game.game_type_name || 'Card Game'}
               </h1>
               <p className="text-base-content/70">
@@ -438,7 +438,7 @@ const GamePlay = ({
             items={sortedPlayers.map(p => p.player_id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {sortedPlayers.map((playerStat, index) => {
                 const currentScore = playerStat.score || 0;
                 const isWinner = gameState.winner?.player_id === playerStat.player_id;
@@ -481,38 +481,39 @@ const GamePlay = ({
         </div>
       )}
 
-      {tracksParts && !isFinalized && roundState && sortedPlayers.length > 0 && !gameState.isReorderMode && (
-        <p className="text-center text-sm text-base-content/70" data-testid="round-recap">
-          {recapLine(roundState.players, roundState.open_round)}
-        </p>
-      )}
-
       {/* Round bar: save the round, see history */}
       {!isFinalized && sortedPlayers.length > 0 && !gameState.isReorderMode && (
-        <div className="sticky bottom-3 z-20 flex gap-2">
-          <button
-            className="btn btn-outline bg-base-100"
-            onClick={() => setShowHistory(true)}
-            aria-label="Score history"
-          >
-            History
-          </button>
-          {tracksParts && (
-            <button
-              className="btn btn-secondary bg-base-100 text-base-content"
-              onClick={() => setShowPlay(true)}
-              disabled={!roundState}
-            >
-              Play
-            </button>
+        <div className="sticky bottom-0 z-20 pt-2 pb-3 bg-base-100/95 backdrop-blur-sm space-y-2">
+          {tracksParts && roundState && (
+            <p className="text-center text-sm text-base-content/70" data-testid="round-recap">
+              {recapLine(roundState.players, roundState.open_round)}
+            </p>
           )}
-          <button
-            className="btn btn-primary flex-1"
-            onClick={() => handleNextRound()}
-            disabled={!roundState || !gameManager.isConnected || gameManager.pendingTaps > 0}
-          >
-            Next round{roundState?.open_round ? ` (${roundState.open_round})` : ''}
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-outline bg-base-100 px-3"
+              onClick={() => setShowHistory(true)}
+              aria-label="Score history"
+            >
+              History
+            </button>
+            {tracksParts && (
+              <button
+                className="btn btn-secondary flex-[3] px-2"
+                onClick={() => setShowPlay(true)}
+                disabled={!roundState}
+              >
+                Play
+              </button>
+            )}
+            <button
+              className="btn btn-primary flex-[2] px-2 whitespace-nowrap"
+              onClick={() => handleNextRound()}
+              disabled={!roundState || !gameManager.isConnected || gameManager.pendingTaps > 0}
+            >
+              Next round{roundState?.open_round ? ` (${roundState.open_round})` : ''}
+            </button>
+          </div>
         </div>
       )}
       {isFinalized && sortedPlayers.length > 0 && (
