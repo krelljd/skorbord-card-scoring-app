@@ -23,7 +23,7 @@ function CardAppWithConnection() {
 
 function App() {
   return (
-    <div className="min-h-screen bg-base-100">
+    <div className="min-h-dvh bg-base-100">
       <Routes>
         {/* Main card scoring route with Sqid parameter */}
         <Route path="/cards/:sqid" element={<CardAppWithConnection />} />
