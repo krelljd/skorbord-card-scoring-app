@@ -280,3 +280,13 @@ Upload your local database to replace the production database:
 - Database backups are kept for recovery purposes
 - All operations are logged for audit purposes
 - Consider running these operations during maintenance windows for production systems
+
+## Adding a sqid on the Pi
+
+To add one sqid without writing SQL, run this on the Pi:
+
+```bash
+./add-sqid.sh abc123 [owner-email]
+```
+
+It sets the id and name to the sqid, created_at to the current UTC time, and the owner to `owner@example.com` unless you pass one. Copy `deployment/add-sqid.sh` to the Pi first (for example `scp deployment/add-sqid.sh pi@raspberrypi.local:~/`).
