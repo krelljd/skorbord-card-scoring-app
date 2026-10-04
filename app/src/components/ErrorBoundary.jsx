@@ -32,7 +32,7 @@ class ErrorBoundary extends Component {
     if (this.state.hasError) {
       // Custom error UI using DaisyUI components
       return (
-        <div className="min-h-screen bg-base-100 flex items-center justify-center p-4">
+        <div className="min-h-dvh bg-base-100 flex items-center justify-center p-4">
           <div className="card w-full max-w-md bg-error text-error-content shadow-xl">
             <div className="card-body text-center">
               <h2 className="card-title justify-center">

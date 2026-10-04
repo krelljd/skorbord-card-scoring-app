@@ -575,3 +575,17 @@
     }
   }
 }
+
+/* Every card and sheet is a daisyUI modal-box, which caps its height at 100vh. On iPhone Safari 100vh is
+   taller than the visible area, so the top or bottom of a tall card ends up off screen. Cap them at the
+   dynamic viewport instead and let the box scroll. This block sits outside any @layer so it beats daisyUI's layered rules. */
+.modal .modal-box {
+  max-height: calc(100vh - 1.5rem);
+  max-height: calc(100dvh - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.modal.modal-bottom .modal-box {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+
