@@ -507,8 +507,18 @@
 .connection-indicator {
   /* Inline by default; no fixed positioning */
   display: inline-flex;
-  /* DaisyUI classes: badge badge-sm badge-success/badge-error are applied in JSX */
+  align-items: center;
+  gap: 0.375rem;
 }
+.connection-dot {
+  width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: currentColor;
+}
+.connection-ok { color: var(--color-success); }
+.connection-warn { color: var(--color-warning); }
+.connection-bad { color: var(--color-error); }
+.connection-indicator .pc-label { color: currentColor; }
+.connection-pulse { animation: connection-pulse 1.4s ease-in-out infinite; }
+@keyframes connection-pulse { 50% { opacity: 0.35; } }
 
   /* iOS Touch Drag Utilities */
   .scale-102 {
