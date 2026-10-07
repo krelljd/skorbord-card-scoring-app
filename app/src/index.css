@@ -2,7 +2,7 @@
 @import "@fontsource-variable/sora";
 @plugin "tailwindcss-animate";
 @plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
+  themes: skorbord-light --default, skorbord-dark --prefersdark;
   
   safelist: [
     "text-primary",
@@ -53,6 +53,64 @@
   ];
 }
 
+@plugin "daisyui/theme" {
+  name: "skorbord-light";
+  default: true;
+  color-scheme: light;
+  --color-base-100: #f4f5f2;
+  --color-base-200: #ffffff;
+  --color-base-300: #dfe3dc;
+  --color-base-content: #16201b;
+  --color-primary: #2b6cb0;
+  --color-primary-content: #ffffff;
+  --color-secondary: #7c3aed;
+  --color-secondary-content: #ffffff;
+  --color-accent: #0f766e;
+  --color-accent-content: #ffffff;
+  --color-neutral: #2a343a;
+  --color-neutral-content: #eef3ef;
+  --color-info: #0e7490;
+  --color-info-content: #ffffff;
+  --color-success: #15803d;
+  --color-success-content: #ffffff;
+  --color-warning: #b45309;
+  --color-warning-content: #ffffff;
+  --color-error: #b91c1c;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 0.875rem;
+}
+
+@plugin "daisyui/theme" {
+  name: "skorbord-dark";
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #12181b;
+  --color-base-200: #1a2226;
+  --color-base-300: #2a343a;
+  --color-base-content: #eaf0ee;
+  --color-primary: #6aa6e6;
+  --color-primary-content: #0b1220;
+  --color-secondary: #a78bfa;
+  --color-secondary-content: #0b1220;
+  --color-accent: #2dd4bf;
+  --color-accent-content: #0b1220;
+  --color-neutral: #2a343a;
+  --color-neutral-content: #eaf0ee;
+  --color-info: #22d3ee;
+  --color-info-content: #0b1220;
+  --color-success: #4ade80;
+  --color-success-content: #0b1220;
+  --color-warning: #facc15;
+  --color-warning-content: #1a1405;
+  --color-error: #f87171;
+  --color-error-content: #1a0a0a;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 0.875rem;
+}
+
 @theme {
   --font-sans: 'Sora Variable', ui-sans-serif, system-ui, sans-serif;
 }
@@ -64,7 +122,7 @@
   --pc-4: #be185d; --pc-5: #a16207; --pc-6: #475569; --pc-7: #0f766e;
   --pc-fg: #ffffff;
 }
-[data-theme="dark"] {
+[data-theme="skorbord-dark"] {
   --pc-0: #6aa6e6; --pc-1: #f08a4b; --pc-2: #a78bfa; --pc-3: #22d3ee;
   --pc-4: #f472b6; --pc-5: #facc15; --pc-6: #94a3b8; --pc-7: #2dd4bf;
   --pc-fg: #0b1220;
@@ -73,9 +131,8 @@
 /* Custom CSS for mobile optimization and touch-friendly UI */
 @layer base {
   html {
-    /* Ensure dark theme and mobile-optimized viewport */
-    background-color: #111827;
-    color: #f9fafb;
+    background-color: var(--color-base-100);
+    color: var(--color-base-content);
   }
 
   body {

@@ -332,7 +332,6 @@ const GamePlay = ({
   if (!gameManager.game) {
     return (
       <div className="flex flex-col items-center justify-center min-h-96 space-y-4">
-        <div className="text-6xl">🃏</div>
         <h2 className="text-2xl font-bold text-base-content">No Active Game</h2>
         <p className="text-base-content/70 text-center max-w-md">
           Start a new game from the menu to begin tracking scores.
@@ -483,7 +482,7 @@ const GamePlay = ({
           )}
           <div className="flex gap-2">
             <button
-              className="btn btn-outline bg-base-100 px-3"
+              className="btn btn-ghost bg-base-200 min-h-12 px-3"
               onClick={() => setShowHistory(true)}
               aria-label="Score history"
             >
@@ -491,7 +490,7 @@ const GamePlay = ({
             </button>
             {tracksParts && (
               <button
-                className="btn btn-secondary flex-[3] px-2"
+                className="btn btn-ghost bg-base-300 min-h-12 flex-[2] px-2"
                 onClick={() => setShowPlay(true)}
                 disabled={!roundState}
               >
@@ -499,7 +498,7 @@ const GamePlay = ({
               </button>
             )}
             <button
-              className="btn btn-primary flex-[2] px-2 whitespace-nowrap"
+              className="btn btn-primary min-h-12 flex-[3] px-2 text-sm whitespace-nowrap font-bold"
               onClick={() => handleNextRound()}
               disabled={!roundState || !gameManager.isConnected || gameManager.pendingTaps > 0}
             >
