@@ -8,7 +8,8 @@ import { PARTS, PART_LABELS } from '../../utils/cribbage.js'
  * running total under each score. Tap a saved cell to correct it.
  * Games from before round tracking show one "Earlier" row with totals only.
  */
-const LINE_COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16', '#6b7280']
+// Same palette as the player cards, so a player keeps one color everywhere
+const LINE_COLORS = Array.from({ length: 8 }, (_, i) => `var(--pc-${i})`)
 
 /** Running totals after each saved round, one line per player. */
 const TotalsChart = ({ players, rows }) => {

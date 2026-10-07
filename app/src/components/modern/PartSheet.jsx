@@ -51,7 +51,7 @@ const PartSheet = ({ title, subtitle, parts, isDealer, quickPlay = true, onAddPl
                 <span className="font-semibold">{PART_LABELS[part]}</span>
                 <button
                   type="button"
-                  className="btn btn-sm btn-ghost text-xl font-bold tabular-nums"
+                  className="btn btn-ghost min-h-11 text-xl font-bold tabular-nums"
                   onClick={() => setPadPart(part)}
                   aria-label={`${PART_LABELS[part]} points: ${parts[part] || 0}. Tap to type`}
                   data-testid={`value-${part}`}
