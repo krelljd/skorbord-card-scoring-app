@@ -490,7 +490,7 @@ const GamePlay = ({
             </button>
             {tracksParts && (
               <button
-                className="btn btn-ghost bg-base-300 min-h-12 flex-[2] px-2"
+                className="btn btn-secondary min-h-12 flex-[2] px-2 font-bold"
                 onClick={() => setShowPlay(true)}
                 disabled={!roundState}
               >
