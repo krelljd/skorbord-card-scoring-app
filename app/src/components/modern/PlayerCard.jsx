@@ -1,35 +1,6 @@
 import { useCallback, memo, useRef, forwardRef } from 'react'
 import { usePointerInteraction } from '../../hooks/usePointerInteraction.js'
 
-// DaisyUI semantic color mapping for players
-const getPlayerColor = (index) => {
-  const colors = [
-    'btn-primary',    // Blue
-    'btn-secondary',  // Purple
-    'btn-accent',     // Green
-    'btn-warning',    // Yellow
-    'btn-error',      // Red
-    'btn-info',       // Cyan
-    'btn-success',    // Green variant
-    'btn-neutral'     // Gray
-  ]
-  return colors[index % colors.length]
-}
-
-const getPlayerBgColor = (index) => {
-  const colors = [
-    'bg-primary/10',    // Light blue
-    'bg-secondary/10',  // Light purple
-    'bg-accent/10',     // Light green
-    'bg-warning/10',    // Light yellow
-    'bg-error/10',      // Light red
-    'bg-info/10',       // Light cyan
-    'bg-success/10',    // Light green variant
-    'bg-neutral/10'     // Light gray
-  ]
-  return colors[index % colors.length]
-}
-
 /**
  * Modern PlayerCard component with defensive programming and DaisyUI styling
  * 
@@ -41,6 +12,7 @@ const getPlayerBgColor = (index) => {
  * @param {Function} onPartClick - (playerId, part) when a part button is tapped
  * @param {boolean} showCrib - Mark the dealer as owner of this round's crib (cribbage)
  * @param {boolean} isWinner - Whether this player is the winner
+ * @param {number|null} target - Score that ends the game, for the progress bar (omit when there is none)
  * @param {number} draft - Points entered so far in the open round
  * @param {Function} onDraftClick - Opens the number pad for this player's round points
  * @param {Function} onScoreUpdate - Callback for score updates (playerId, newScore)
@@ -57,6 +29,7 @@ const PlayerCard = forwardRef(({
   onPartClick,
   isWinner,
   draft = 0,
+  target = null,
   onDraftClick,
   onScoreUpdate,
   onDealerClick,
@@ -141,139 +114,129 @@ const PlayerCard = forwardRef(({
     }
   }, [handleScoreChange, disabled])
 
-  const playerColorClass = getPlayerColor(safePlayerIndex)
-  const playerBgClass = getPlayerBgColor(safePlayerIndex)
+  const color = `var(--pc-${safePlayerIndex % 8})`
+  const progress = target > 0 ? Math.max(0, Math.min(100, Math.round((safePlayer.score / target) * 100))) : null
+  const roundLabel = `${draft > 0 ? '+' : ''}${draft}`
 
   return (
-    <div 
+    <div
       ref={ref}
-      className={`card ${playerBgClass} border-2 ${
-        isWinner ? 'border-success border-solid shadow-success/50 shadow-lg animate-pulse' :
-        isDealer ? 'border-primary border-dashed' : 'border-base-300'
-      } ${disabled ? 'opacity-60' : ''}`}
+      className={`pc-card ${disabled ? 'opacity-60' : ''}`}
+      style={{ '--c': color }}
+      data-dealer={isDealer ? 'true' : 'false'}
+      data-winner={isWinner ? 'true' : 'false'}
       role="region"
       aria-label={`Player ${safePlayer.name}${isDealer ? ' (Dealer)' : ''}${isWinner ? ' (Winner)' : ''}`}
     >
-      <div className="card-body p-3">
-        {/* Player Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <h3 className={`text-lg font-bold ${isWinner ? 'text-success' : 'text-base-content'}`}>
-              {safePlayer.name}
-              {isWinner && ' 🏆'}
-            </h3>
-            {isDealer && (
-              <button
-                className="badge badge-primary badge-sm hover:badge-primary-focus active:badge-primary-focus active:scale-95 transition-all duration-150 cursor-pointer"
-                onClick={onDealerClick}
-                disabled={disabled}
-                title="Click to cycle to next dealer"
-                aria-label="Cycle to next dealer"
-              >
-                🃏 Dealer{showCrib ? ' · Crib' : ''}
-              </button>
-            )}
-            {isWinner && (
-              <div className="badge badge-success badge-sm">
-                Winner
-              </div>
-            )}
-          </div>
-          <div className="text-right relative">
-                <div className="flex items-center justify-end gap-3">
-              {/* This round's points: stays until the round is saved. Tap to type an exact value */}
-              <button
-                type="button"
-                className={`btn btn-sm btn-ghost px-2 text-xl font-bold ${
-                  draft > 0 ? 'text-success' : draft < 0 ? 'text-error' : 'text-base-content/40'
-                }`}
-                onClick={() => onDraftClick?.(safePlayer.id)}
-                disabled={disabled}
-                aria-label={`Points this round for ${safePlayer.name}: ${draft}. Tap to enter`}
-                data-testid="round-chip"
-              >
-                {draft > 0 ? '+' : ''}
-                {draft}
-              </button>
-
-              {/* Main Score */}
-              <div className={`text-2xl font-bold ${
-                isWinner ? 'text-success' : 
-                safePlayer.score < 0 ? 'text-error' : 
-                'text-base-content'
-              }`}>
-                {safePlayer.score}
-              </div>
-            </div>
-            
-            <div className="text-xs text-base-content/60">
-              points
-            </div>
-          </div>
+      <div className="flex items-center gap-2">
+        <div className="pc-avatar" aria-hidden="true">
+          {safePlayer.name.trim().charAt(0).toUpperCase()}
         </div>
 
-        {/* Cribbage: Hand and Crib buttons, each opens the number pad */}
-        {!disabled && partsMode && (
-          <div className="flex gap-2 justify-center" data-testid="part-buttons">
-            {['hand', 'crib'].filter((part) => part !== 'crib' || isDealer).map((part) => {
-              const value = draftParts ? draftParts[part] : part === 'play' ? draft : 0
-              return (
-                <button
-                  key={part}
-                  type="button"
-                  className={`btn btn-lg ${playerColorClass} flex-1 flex-col h-auto py-2 leading-tight`}
-                  onClick={() => onPartClick?.(safePlayer.id, part)}
-                  aria-label={`${part} points for ${safePlayer.name}: ${value}`}
-                >
-                  <span className="capitalize">{part}</span>
-                  <span className="text-xs font-normal opacity-80">{value}</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Score Controls */}
-        {!disabled && !partsMode && (
-          <div className="flex gap-2 justify-center">
-            {/* Subtract Points */}
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-base font-bold leading-tight">{safePlayer.name}</h3>
+          {isWinner ? (
+            <span className="pc-label font-bold">Winner</span>
+          ) : isDealer ? (
             <button
-              className={`btn btn-lg ${playerColorClass} btn-outline flex-1 ${
-                minusPointer.glowingButton === 'minus' ? 'btn-active' : ''
-              }`}
-              onPointerDown={(e) => minusPointer.handlePointerDown(e, -1)}
-              onPointerMove={minusPointer.handlePointerMove}
-              onPointerUp={(e) => minusPointer.handlePointerUp(e, -1)}
-              onPointerCancel={minusPointer.handlePointerCancel}
-              onPointerLeave={minusPointer.handlePointerLeave}
-              onKeyDown={(e) => handleKeyDown(e, -1)}
-              disabled={safePlayer.score <= -999 || disabled}
-              aria-label={`Subtract point from ${safePlayer.name}`}
-              style={{ touchAction: 'manipulation' }}
+              type="button"
+              className="pc-label font-bold underline decoration-dotted underline-offset-2 min-h-6"
+              onClick={onDealerClick}
+              disabled={disabled}
+              title="Tap to pass the deal to the next player"
+              aria-label="Cycle to next dealer"
             >
-              <span className="text-lg">-</span>
+              Dealer{showCrib ? ' · Crib' : ''}
             </button>
+          ) : null}
+        </div>
 
-            {/* Add Points */}
-            <button
-              className={`btn btn-lg ${playerColorClass} flex-1 ${
-                plusPointer.glowingButton === 'plus' ? 'btn-active' : ''
-              }`}
-              onPointerDown={(e) => plusPointer.handlePointerDown(e, 1)}
-              onPointerMove={plusPointer.handlePointerMove}
-              onPointerUp={(e) => plusPointer.handlePointerUp(e, 1)}
-              onPointerCancel={plusPointer.handlePointerCancel}
-              onPointerLeave={plusPointer.handlePointerLeave}
-              onKeyDown={(e) => handleKeyDown(e, 1)}
-              disabled={safePlayer.score >= 999 || disabled}
-              aria-label={`Add point to ${safePlayer.name}`}
-              style={{ touchAction: 'manipulation' }}
-            >
-              <span className="text-lg">+</span>
-            </button>
-          </div>
-        )}
+        {/* This round's points: stays until the round is saved. Tap to type an exact value */}
+        <button
+          type="button"
+          className={`pc-chip ${draft < 0 ? 'text-error' : draft === 0 ? 'text-base-content/70' : ''}`}
+          style={draft > 0 ? { color: 'var(--c)' } : undefined}
+          onClick={() => onDraftClick?.(safePlayer.id)}
+          disabled={disabled}
+          aria-label={`Points this round for ${safePlayer.name}: ${draft}. Tap to enter`}
+          data-testid="round-chip"
+        >
+          {roundLabel}
+        </button>
+
+        <div className={`pc-score ${safePlayer.score < 0 ? 'text-error' : ''}`}>{safePlayer.score}</div>
       </div>
+
+      {progress !== null && (
+        <div
+          className="pc-track"
+          role="progressbar"
+          aria-label={`${safePlayer.name} progress to ${target}`}
+          aria-valuemin={0}
+          aria-valuemax={target}
+          aria-valuenow={Math.max(0, safePlayer.score)}
+        >
+          <i style={{ width: `${progress}%` }} />
+        </div>
+      )}
+
+      {/* Cribbage: Hand and Crib buttons, each opens the number pad */}
+      {!disabled && partsMode && (
+        <div className="flex gap-2" data-testid="part-buttons">
+          {['hand', 'crib'].filter((part) => part !== 'crib' || isDealer).map((part) => {
+            const value = draftParts ? draftParts[part] : part === 'play' ? draft : 0
+            return (
+              <button
+                key={part}
+                type="button"
+                className={`pc-btn ${value > 0 ? '' : 'pc-btn-outline'}`}
+                onClick={() => onPartClick?.(safePlayer.id, part)}
+                aria-label={`${part} points for ${safePlayer.name}: ${value}`}
+              >
+                <span className="capitalize">{part}</span>
+                <span className="text-xs font-medium opacity-90">{value > 0 ? `+${value}` : value}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Score Controls */}
+      {!disabled && !partsMode && (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`pc-btn pc-btn-outline text-2xl ${minusPointer.glowingButton === 'minus' ? 'opacity-70' : ''}`}
+            onPointerDown={(e) => minusPointer.handlePointerDown(e, -1)}
+            onPointerMove={minusPointer.handlePointerMove}
+            onPointerUp={(e) => minusPointer.handlePointerUp(e, -1)}
+            onPointerCancel={minusPointer.handlePointerCancel}
+            onPointerLeave={minusPointer.handlePointerLeave}
+            onKeyDown={(e) => handleKeyDown(e, -1)}
+            disabled={safePlayer.score <= -999 || disabled}
+            aria-label={`Subtract point from ${safePlayer.name}`}
+            style={{ touchAction: 'manipulation' }}
+          >
+            <span aria-hidden="true">−</span>
+          </button>
+
+          <button
+            type="button"
+            className={`pc-btn text-2xl ${plusPointer.glowingButton === 'plus' ? 'opacity-80' : ''}`}
+            onPointerDown={(e) => plusPointer.handlePointerDown(e, 1)}
+            onPointerMove={plusPointer.handlePointerMove}
+            onPointerUp={(e) => plusPointer.handlePointerUp(e, 1)}
+            onPointerCancel={plusPointer.handlePointerCancel}
+            onPointerLeave={plusPointer.handlePointerLeave}
+            onKeyDown={(e) => handleKeyDown(e, 1)}
+            disabled={safePlayer.score >= 999 || disabled}
+            aria-label={`Add point to ${safePlayer.name}`}
+            style={{ touchAction: 'manipulation' }}
+          >
+            <span aria-hidden="true">+</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 })

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@fontsource-variable/sora";
 @plugin "tailwindcss-animate";
 @plugin "daisyui" {
   themes: light --default, dark --prefersdark;
@@ -50,6 +51,23 @@
     "player-reorder-highlight",
     "player-reorder-status"
   ];
+}
+
+@theme {
+  --font-sans: 'Sora Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Player palette: eight hues chosen to avoid red and green (those mean error and winner).
+   --pc-fg is the text color that reads on top of a player color. */
+:root {
+  --pc-0: #2b6cb0; --pc-1: #c05621; --pc-2: #7c3aed; --pc-3: #0e7490;
+  --pc-4: #be185d; --pc-5: #a16207; --pc-6: #475569; --pc-7: #0f766e;
+  --pc-fg: #ffffff;
+}
+[data-theme="dark"] {
+  --pc-0: #6aa6e6; --pc-1: #f08a4b; --pc-2: #a78bfa; --pc-3: #22d3ee;
+  --pc-4: #f472b6; --pc-5: #facc15; --pc-6: #94a3b8; --pc-7: #2dd4bf;
+  --pc-fg: #0b1220;
 }
 
 /* Custom CSS for mobile optimization and touch-friendly UI */
@@ -589,3 +607,61 @@
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
 }
 
+
+
+/* Player card (Sharper Scoreboard) */
+@layer components {
+  .pc-card {
+    background: var(--color-base-200);
+    border: 1px solid var(--color-base-300);
+    border-radius: 0.875rem;
+    padding: 0.625rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .pc-card[data-dealer="true"] { box-shadow: inset 0 0 0 2px var(--c); }
+  .pc-card[data-winner="true"] { box-shadow: inset 0 0 0 3px var(--color-base-content); }
+  .pc-avatar {
+    width: 2rem; height: 2rem; border-radius: 9999px; flex: none;
+    display: grid; place-items: center;
+    background: var(--c); color: var(--pc-fg);
+    font-weight: 800; font-size: 0.8rem;
+  }
+  .pc-score {
+    font-size: 2.5rem; line-height: 1; font-weight: 800;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.03em;
+  }
+  .pc-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.625rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+  }
+  .pc-track {
+    height: 0.3125rem; border-radius: 9999px; overflow: hidden;
+    background: var(--color-base-300);
+  }
+  .pc-track > i { display: block; height: 100%; background: var(--c); }
+  .pc-btn {
+    min-height: 3rem; border-radius: 0.75rem; flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 700; line-height: 1.15;
+    background: var(--c); color: var(--pc-fg);
+    box-shadow: inset 0 0 0 2px var(--c);
+  }
+  .pc-btn:disabled { opacity: 0.4; }
+  .pc-btn-outline { background: transparent; color: var(--c); }
+  .pc-btn:focus-visible, .pc-chip:focus-visible { outline: 3px solid var(--color-base-content); outline-offset: 2px; }
+  .pc-chip {
+    min-height: 2.75rem; min-width: 2.75rem; padding: 0 0.5rem; border-radius: 0.5rem;
+    font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.05rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
