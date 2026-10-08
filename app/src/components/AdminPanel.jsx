@@ -1,11 +1,17 @@
 import { useState } from 'react'
+import RivalryAdmin from './RivalryAdmin.jsx'
 
 const AdminPanel = ({ 
   sqid, 
   gameTypes, 
   setGameTypes, 
-  backToSetup 
+  backToSetup,
+  rivalries = [],
+  setRivalries = () => {},
+  initialTab = 'game-types'
 }) => {
+  const [tab, setTab] = useState(initialTab)
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -114,10 +120,6 @@ const AdminPanel = ({
   }
 
   const deleteGameType = async (gameTypeId) => {
-    if (!confirm('Are you sure you want to delete this game type? This cannot be undone.')) {
-      return
-    }
-
     setLoading(true)
     clearMessages()
 
@@ -132,6 +134,7 @@ const AdminPanel = ({
       }
 
       setGameTypes(prev => prev.filter(gt => gt.id !== gameTypeId))
+      setConfirmingDeleteId(null)
       setSuccess('Game type deleted successfully!')
 
     } catch (err) {
@@ -142,76 +145,122 @@ const AdminPanel = ({
     }
   }
 
+  const ruleLabel = (gameType) => (
+    !gameType.is_win_condition
+      ? `Lose at ${gameType.loss_condition}`
+      : `First to ${gameType.win_condition}`
+  )
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 mb-6">
-        <button 
-          className="btn btn-ghost btn-sm"
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 mb-2">
+        <button
+          className="btn btn-ghost min-h-11 min-w-11"
           onClick={backToSetup}
+          aria-label="Back to setup"
         >
-          ← Back
+          ←
         </button>
-        <h2 className="text-xl font-bold">Admin</h2>
+        <h2 className="text-lg font-bold">Admin</h2>
       </div>
 
-      {/* Messages */}
-      {error && (
-        <div className="error-state">
-          <p>{error}</p>
-        </div>
-      )}
-      
-      {success && (
-        <div className="success-state">
-          <p>{success}</p>
-        </div>
-      )}
+      <div className="st-seg" role="tablist" aria-label="Admin section">
+        {[['game-types', 'Game types'], ['rivalries', 'Rivalries']].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={tab === id ? 'st-seg-on' : ''}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {/* Game Types Management */}
-      <div className="space-y-6">
-        {/* Add New Game Type */}
-        <div className="card bg-base-200 p-4">
-          <h3 className="text-lg font-semibold mb-4">Add New Game Type</h3>
-          
-          <div className="space-y-4">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text">Game Type Name</span>
-              </label>
-              <input 
-                type="text"
-                className="input input-bordered"
-                placeholder="e.g. Hearts, Spades, Rummy"
-                value={newGameType.name}
-                onChange={(e) => setNewGameType(prev => ({ ...prev, name: e.target.value }))}
+      {tab === 'rivalries' ? (
+        <RivalryAdmin sqid={sqid} rivalries={rivalries} setRivalries={setRivalries} embedded />
+      ) : (
+        <>
+          {error && <div className="error-state"><p>{error}</p></div>}
+          {success && <div className="success-state"><p>{success}</p></div>}
+
+          <h3 className="st-lbl">Your game types</h3>
+          {gameTypes.length === 0 ? (
+            <p className="text-center opacity-75 py-4">No game types yet</p>
+          ) : (
+            gameTypes.map(gameType => (
+              <section key={gameType.id} className="st-card" aria-label={gameType.name}>
+                <div className="flex items-center gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold truncate">{gameType.name}</h4>
+                    <span className="st-chip mt-1.5">{ruleLabel(gameType)}</span>
+                  </div>
+                  <button
+                    className={`st-icon-btn ${gameType.is_favorited ? 'st-icon-on' : ''}`}
+                    onClick={() => toggleGameTypeFavorite(gameType.id, gameType.is_favorited)}
+                    disabled={loading}
+                    title={gameType.is_favorited ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-label={gameType.is_favorited ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-pressed={!!gameType.is_favorited}
+                  >
+                    {gameType.is_favorited ? '★' : '☆'}
+                  </button>
+                  <button
+                    className="st-icon-btn st-icon-danger"
+                    onClick={() => setConfirmingDeleteId(gameType.id)}
+                    disabled={loading}
+                    aria-label={`Delete ${gameType.name}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {confirmingDeleteId === gameType.id && (
+                  <div className="st-danger">
+                    <p className="st-key">Delete {gameType.name}? This cannot be undone.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button className="btn btn-outline min-h-11" onClick={() => setConfirmingDeleteId(null)}>Keep</button>
+                      <button className="btn btn-error min-h-11" onClick={() => deleteGameType(gameType.id)} disabled={loading}>Delete</button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            ))
+          )}
+
+          <section className="st-card space-y-3" aria-labelledby="ad-add">
+            <h4 id="ad-add" className="st-lbl">Add a game type</h4>
+            <input
+              type="text"
+              className="input input-bordered w-full min-h-11"
+              placeholder="e.g. Hearts, Spades, Rummy"
+              aria-label="Game type name"
+              value={newGameType.name}
+              onChange={(e) => setNewGameType(prev => ({ ...prev, name: e.target.value }))}
+            />
+            <div className="grid grid-cols-[1fr_5.5rem] gap-2">
+              <select
+                className="select select-bordered min-h-11"
+                aria-label="Win condition"
+                value={newGameType.win_condition_type}
+                onChange={(e) => setNewGameType(prev => ({ ...prev, win_condition_type: e.target.value }))}
+              >
+                <option value="win">Win at score</option>
+                <option value="lose">Lose at score</option>
+              </select>
+              <input
+                type="number"
+                inputMode="numeric"
+                className="input input-bordered min-h-11"
+                placeholder="100"
+                aria-label="Score"
+                value={newGameType.win_condition_value}
+                onChange={(e) => setNewGameType(prev => ({ ...prev, win_condition_value: e.target.value }))}
               />
             </div>
-
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text">Win Condition</span>
-              </label>
-              <div className="flex gap-2">
-                <select 
-                  className="select select-bordered flex-1"
-                  value={newGameType.win_condition_type}
-                  onChange={(e) => setNewGameType(prev => ({ ...prev, win_condition_type: e.target.value }))}
-                >
-                  <option value="win">Win at score</option>
-                  <option value="lose">Lose at score</option>
-                </select>
-                <input 
-                  type="number"
-                  className="input input-bordered w-8"
-                  placeholder="100"
-                  value={newGameType.win_condition_value}
-                  onChange={(e) => setNewGameType(prev => ({ ...prev, win_condition_value: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <button 
-              className="btn btn-primary w-full"
+            <button
+              className="btn btn-primary w-full min-h-11"
               onClick={addGameType}
               disabled={loading || !newGameType.name.trim()}
             >
@@ -221,60 +270,12 @@ const AdminPanel = ({
                   Adding...
                 </>
               ) : (
-                'Add Game Type'
+                'Add game type'
               )}
             </button>
-          </div>
-        </div>
-
-        {/* Existing Game Types */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Existing Game Types</h3>
-          
-          {gameTypes.length === 0 ? (
-            <p className="text-center opacity-75 py-4">No game types yet</p>
-          ) : (
-            gameTypes.map(gameType => (
-              <div key={gameType.id} className="card bg-base-200 p-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h4 className="font-semibold flex items-center gap-2">
-                      {gameType.name}
-                      {gameType.is_favorited && <span>⭐</span>}
-                    </h4>
-                    <p className="text-sm opacity-75">
-                      {!gameType.is_win_condition ?
-                        `Lose at ${gameType.loss_condition}` :
-                        `Win at ${gameType.win_condition}`
-                      }
-                    </p>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button 
-                      className={`btn btn-sm transition-all duration-200 ${gameType.is_favorited ? 'btn-warning ring-2 ring-warning ring-offset-2 font-bold scale-110' : 'btn-outline'}`}
-                      onClick={() => toggleGameTypeFavorite(gameType.id, gameType.is_favorited)}
-                      disabled={loading}
-                      title={gameType.is_favorited ? 'Remove from favorites' : 'Add to favorites'}
-                      aria-pressed={gameType.is_favorited}
-                    >
-                      {gameType.is_favorited ? '★' : '☆'}
-                    </button>
-                    
-                    <button 
-                      className="btn btn-error btn-sm"
-                      onClick={() => deleteGameType(gameType.id)}
-                      disabled={loading}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+          </section>
+        </>
+      )}
     </div>
   )
 }

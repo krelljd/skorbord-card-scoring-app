@@ -12,7 +12,7 @@ import GamePlay from './modern/GamePlay.jsx'
 import ConnectionStatus from './ConnectionStatus.jsx'
 
 // Lazy-loaded admin components for better performance
-import { LazyAdminPanel, LazyRivalryStats, LazyRivalryAdmin } from './LazyComponents.jsx'
+import { LazyAdminPanel, LazyRivalryStats } from './LazyComponents.jsx'
 
 
 /**
@@ -40,7 +40,8 @@ const ModernCardApp = () => {
   } = useAppData(sqid)
   
   // App state - simplified with modern state management
-  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, rivalry-admin, admin
+  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
+  const [adminTab, setAdminTab] = useState('game-types')
   const [loading, setLoading] = useState(true)
 
   // Initialize app when connection is ready and data is loaded
@@ -145,7 +146,7 @@ const ModernCardApp = () => {
                   </button>
                   <button
                     className={`btn btn-sm ${currentView === 'admin' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setCurrentView('admin')}
+                    onClick={() => { setAdminTab('game-types'); setCurrentView('admin') }}
                   >
                     Admin
                   </button>
@@ -175,16 +176,7 @@ const ModernCardApp = () => {
                   rivalries={rivalries}
                   players={players}
                   backToSetup={() => setCurrentView('setup')}
-                  onManage={() => setCurrentView('rivalry-admin')}
-                />
-              )}
-
-              {currentView === 'rivalry-admin' && (
-                <LazyRivalryAdmin
-                  sqid={sqid}
-                  rivalries={rivalries}
-                  setRivalries={setRivalries}
-                  backToStats={() => setCurrentView('rivalry-stats')}
+                  onManage={() => { setAdminTab('rivalries'); setCurrentView('admin') }}
                 />
               )}
 
@@ -194,6 +186,9 @@ const ModernCardApp = () => {
                   gameTypes={gameTypes}
                   setGameTypes={setGameTypes}
                   backToSetup={() => setCurrentView('setup')}
+                  rivalries={rivalries}
+                  setRivalries={setRivalries}
+                  initialTab={adminTab}
                 />
               )}
             </main>
