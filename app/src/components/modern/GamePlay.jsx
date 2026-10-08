@@ -332,7 +332,6 @@ const GamePlay = ({
   if (!gameManager.game) {
     return (
       <div className="flex flex-col items-center justify-center min-h-96 space-y-4">
-        <div className="text-6xl">🃏</div>
         <h2 className="text-2xl font-bold text-base-content">No Active Game</h2>
         <p className="text-base-content/70 text-center max-w-md">
           Start a new game from the menu to begin tracking scores.
@@ -354,51 +353,42 @@ const GamePlay = ({
 
   return (
     <div className="space-y-3">
-      {/* Game Header */}
-      <div className="card bg-base-200 shadow-sm">
-        <div className="card-body p-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h1 className="card-title text-xl">
-                {game.game_type_name || 'Card Game'}
-              </h1>
-              <p className="text-base-content/70">
-                Reach <span className='font-bold text-primary'>{game.win_condition_value || 'unknown'}</span> to <span className='font-bold text-secondary'>{game.win_condition_type || 'unknown'}</span>
-              </p>
-            </div>
-            
-            {/* Game Actions */}
-            <div className="flex flex-wrap gap-2">
-              {/* Reorder Mode Toggle */}
+      {/* Game Header: one line, secondary actions in a menu */}
+      <div className="flex items-center gap-2 px-1">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-bold leading-tight">
+            {game.game_type_name || 'Card Game'}
+          </h1>
+          <p className="pc-label">
+            {game.win_condition_type === 'win' ? 'First to' : 'Lose at'} {game.win_condition_value || '?'}
+          </p>
+        </div>
+
+        {!isFinalized && gameState.winner && (
+          <button className="btn btn-error btn-sm min-h-11" onClick={() => setShowFinalizeConfirm(true)}>
+            Finalize Game
+          </button>
+        )}
+
+        {(onBackToSetup || (!isFinalized && sortedPlayers.length > 1)) && (
+          <div className="dropdown dropdown-end">
+            <button type="button" tabIndex={0} className="btn btn-ghost btn-square min-h-11 min-w-11" aria-label="Game menu">
+              <span aria-hidden="true" className="text-xl leading-none">⋯</span>
+            </button>
+            <ul tabIndex={0} className="dropdown-content menu bg-base-200 rounded-box z-30 w-52 p-2 shadow-lg">
               {!isFinalized && sortedPlayers.length > 1 && (
-                <button
-                  className={`btn btn-sm ${gameState.isReorderMode ? 'btn-warning' : 'btn-outline'}`}
-                  onClick={toggleReorderMode}
-                >
-                  {gameState.isReorderMode ? '✓ Exit Reorder' : '⋮⋮ Reorder Players'}
-                </button>
-              )}
-              
-              {/* Only show Finalize Game button if there is a winner and game is not finalized */}
-              {!isFinalized && gameState.winner && (
-                <button
-                  className="btn btn-error btn-sm"
-                  onClick={() => setShowFinalizeConfirm(true)}
-                >
-                  Finalize Game
-                </button>
+                <li>
+                  <button type="button" onClick={toggleReorderMode}>
+                    {gameState.isReorderMode ? 'Done reordering' : 'Reorder players'}
+                  </button>
+                </li>
               )}
               {onBackToSetup && (
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={onBackToSetup}
-                >
-                  Back to Setup
-                </button>
+                <li><button type="button" onClick={onBackToSetup}>Back to setup</button></li>
               )}
-            </div>
+            </ul>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Reorder Mode Alert - Enhanced for iOS */}
@@ -453,6 +443,7 @@ const GamePlay = ({
                     }}
                     playerIndex={index}
                     draft={draftByPlayer[playerStat.player_id] || 0}
+                    target={game.win_condition_type === 'win' ? game.win_condition_value : null}
                     onDraftClick={openPad}
                     isReorderMode={gameState.isReorderMode}
                     onScoreUpdate={(playerId, change) => {
@@ -491,7 +482,7 @@ const GamePlay = ({
           )}
           <div className="flex gap-2">
             <button
-              className="btn btn-outline bg-base-100 px-3"
+              className="btn btn-ghost bg-base-200 min-h-12 px-3"
               onClick={() => setShowHistory(true)}
               aria-label="Score history"
             >
@@ -499,7 +490,7 @@ const GamePlay = ({
             </button>
             {tracksParts && (
               <button
-                className="btn btn-secondary flex-[3] px-2"
+                className="btn btn-secondary min-h-12 flex-[2] px-2 font-bold"
                 onClick={() => setShowPlay(true)}
                 disabled={!roundState}
               >
@@ -507,7 +498,7 @@ const GamePlay = ({
               </button>
             )}
             <button
-              className="btn btn-primary flex-[2] px-2 whitespace-nowrap"
+              className="btn btn-primary min-h-12 flex-[3] px-2 text-sm whitespace-nowrap font-bold"
               onClick={() => handleNextRound()}
               disabled={!roundState || !gameManager.isConnected || gameManager.pendingTaps > 0}
             >

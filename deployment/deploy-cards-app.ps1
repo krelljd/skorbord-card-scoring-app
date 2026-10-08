@@ -73,16 +73,13 @@ try {
     if ($dirty) { Write-Host "Note: you have uncommitted changes. They will be deployed." -ForegroundColor Yellow }
 
     # 2. Local packages, tests, then build
-    if (-not (Test-Path (Join-Path $repoRoot 'api/node_modules'))) {
-        Write-Step "Installing API packages (first run)"
-        npm --prefix api install
-        Assert-Success "npm install (api)"
-    }
-    if (-not (Test-Path (Join-Path $repoRoot 'app/node_modules'))) {
-        Write-Step "Installing app packages (first run)"
-        npm --prefix app install
-        Assert-Success "npm install (app)"
-    }
+    # Always run install: it is quick when nothing changed, and it picks up new dependencies
+    Write-Step "Installing API packages"
+    npm --prefix api install
+    Assert-Success "npm install (api)"
+    Write-Step "Installing app packages"
+    npm --prefix app install
+    Assert-Success "npm install (app)"
 
     if (-not $SkipTests) {
         Write-Step "Running API tests"

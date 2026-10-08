@@ -114,44 +114,31 @@ const ModernCardApp = () => {
         <GameStateProvider sqid={sqid}>
           <div className="mobile-container-modern">
             {/* Header with connection status and navigation */}
-            <header className="card bg-base-100 shadow-lg mb-2">
-              <div className="card-body p-3">
-                <div className="flex items-center justify-between">
-                  <h1 className="text-xl font-bold text-base-content">
-                    Skorbord
-                  </h1>
-                  <ConnectionStatus />
-                </div>
-                
-                {/* Navigation - Always visible */}
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  <button
-                    className={`btn btn-sm ${currentView === 'playing' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setCurrentView('playing')}
-                  >
-                    Current
-                  </button>
-                  <button
-                    className={`btn btn-sm ${currentView === 'setup' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setCurrentView('setup')}
-                  >
-                    New Game
-                  </button>
-                  
-                  <button
-                    className={`btn btn-sm ${currentView === 'rivalry-stats' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setCurrentView('rivalry-stats')}
-                  >
-                    Stats
-                  </button>
-                  <button
-                    className={`btn btn-sm ${currentView === 'admin' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => { setAdminTab('game-types'); setCurrentView('admin') }}
-                  >
-                    Admin
-                  </button>
-                </div>
+            <header className="mb-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between px-1">
+                <h1 className="text-xl font-extrabold tracking-tight">Skorbord</h1>
+                <ConnectionStatus />
               </div>
+
+              {/* Navigation - Always visible */}
+              <nav className="grid grid-cols-4 gap-1 rounded-box bg-base-200 p-1" aria-label="Sections">
+                {[
+                  ['playing', 'Current'],
+                  ['setup', 'New game'],
+                  ['rivalry-stats', 'Stats'],
+                  ['admin', 'Admin'],
+                ].map(([view, label]) => (
+                  <button
+                    key={view}
+                    type="button"
+                    className={`btn btn-sm min-h-11 border-0 px-1 text-xs whitespace-nowrap shadow-none ${currentView === view ? 'btn-primary' : 'btn-ghost'}`}
+                    aria-current={currentView === view ? 'page' : undefined}
+                    onClick={() => { if (view === 'admin') setAdminTab('game-types'); setCurrentView(view) }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
             </header>
 
             {/* Main content */}
