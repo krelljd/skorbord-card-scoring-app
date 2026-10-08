@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { getStoredAdminPin, setStoredAdminPin, clearStoredAdminPin } from '../utils/adminPin.js'
 
-const RivalryAdmin = ({ sqid, rivalries, setRivalries, backToStats }) => {
+const RivalryAdmin = ({ sqid, rivalries, setRivalries, backToStats, embedded = false }) => {
   const [pinInput, setPinInput] = useState('')
   const [verifiedPin, setVerifiedPin] = useState(() => getStoredAdminPin(sqid))
   const [pinError, setPinError] = useState('')
@@ -122,12 +122,14 @@ const RivalryAdmin = ({ sqid, rivalries, setRivalries, backToStats }) => {
 
   if (!verifiedPin) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4 mb-6">
-          <button className="btn btn-ghost btn-sm" onClick={backToStats}>← Back</button>
-          <h2 className="text-xl font-bold">Manage Rivalries</h2>
-        </div>
-        <div className="card bg-base-200 p-4 space-y-4">
+      <div className="space-y-3">
+        {!embedded && (
+          <div className="flex items-center gap-4 mb-6">
+            <button className="btn btn-ghost btn-sm" onClick={backToStats}>← Back</button>
+            <h2 className="text-xl font-bold">Manage Rivalries</h2>
+          </div>
+        )}
+        <div className="st-card card space-y-4">
           <p className="text-sm opacity-75">Enter the admin PIN to manage rivalries.</p>
           <input
             type="password"
@@ -158,18 +160,20 @@ const RivalryAdmin = ({ sqid, rivalries, setRivalries, backToStats }) => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 mb-6">
-        <button className="btn btn-ghost btn-sm" onClick={backToStats}>← Back</button>
-        <h2 className="text-xl font-bold">Manage Rivalries</h2>
-      </div>
+    <div className="space-y-3">
+      {!embedded && (
+        <div className="flex items-center gap-4 mb-6">
+          <button className="btn btn-ghost btn-sm" onClick={backToStats}>← Back</button>
+          <h2 className="text-xl font-bold">Manage Rivalries</h2>
+        </div>
+      )}
 
       {rivalries.length === 0 ? (
         <p className="text-center opacity-75 py-4">No rivalries yet</p>
       ) : (
         <div className="space-y-3">
           {rivalries.map(rivalry => (
-            <div key={rivalry.id} className="card bg-base-200 p-4 space-y-3">
+            <div key={rivalry.id} className="st-card card space-y-3">
               <p className="font-semibold">
                 {(rivalry.player_names || []).join(' vs ')}
               </p>

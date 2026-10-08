@@ -12,7 +12,7 @@ import GamePlay from './modern/GamePlay.jsx'
 import ConnectionStatus from './ConnectionStatus.jsx'
 
 // Lazy-loaded admin components for better performance
-import { LazyAdminPanel, LazyRivalryStats, LazyRivalryAdmin } from './LazyComponents.jsx'
+import { LazyAdminPanel, LazyRivalryStats } from './LazyComponents.jsx'
 
 
 /**
@@ -40,7 +40,8 @@ const ModernCardApp = () => {
   } = useAppData(sqid)
   
   // App state - simplified with modern state management
-  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, rivalry-admin, admin
+  const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
+  const [adminTab, setAdminTab] = useState('game-types')
   const [loading, setLoading] = useState(true)
 
   // Initialize app when connection is ready and data is loaded
@@ -132,7 +133,7 @@ const ModernCardApp = () => {
                     type="button"
                     className={`btn btn-sm min-h-11 border-0 px-1 text-xs whitespace-nowrap shadow-none ${currentView === view ? 'btn-primary' : 'btn-ghost'}`}
                     aria-current={currentView === view ? 'page' : undefined}
-                    onClick={() => setCurrentView(view)}
+                    onClick={() => { if (view === 'admin') setAdminTab('game-types'); setCurrentView(view) }}
                   >
                     {label}
                   </button>
@@ -162,16 +163,7 @@ const ModernCardApp = () => {
                   rivalries={rivalries}
                   players={players}
                   backToSetup={() => setCurrentView('setup')}
-                  onManage={() => setCurrentView('rivalry-admin')}
-                />
-              )}
-
-              {currentView === 'rivalry-admin' && (
-                <LazyRivalryAdmin
-                  sqid={sqid}
-                  rivalries={rivalries}
-                  setRivalries={setRivalries}
-                  backToStats={() => setCurrentView('rivalry-stats')}
+                  onManage={() => { setAdminTab('rivalries'); setCurrentView('admin') }}
                 />
               )}
 
@@ -181,6 +173,9 @@ const ModernCardApp = () => {
                   gameTypes={gameTypes}
                   setGameTypes={setGameTypes}
                   backToSetup={() => setCurrentView('setup')}
+                  rivalries={rivalries}
+                  setRivalries={setRivalries}
+                  initialTab={adminTab}
                 />
               )}
             </main>
