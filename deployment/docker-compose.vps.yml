@@ -21,7 +21,7 @@ services:
       - skorbord-data:/data
     labels:
       - traefik.enable=true
-      - traefik.http.routers.skorbord.rule=Host(`cards.skorbord.app`) || Host(`cinderglyph.cloud`) || Host(`www.cinderglyph.cloud`)
+      - traefik.http.routers.skorbord.rule=Host(`cinderglyph.cloud`) || Host(`www.cinderglyph.cloud`)
       - traefik.http.routers.skorbord.entrypoints=websecure
       - traefik.http.routers.skorbord.tls.certresolver=letsencrypt
       - traefik.http.services.skorbord.loadbalancer.server.port=2525
