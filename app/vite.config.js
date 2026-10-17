@@ -83,9 +83,6 @@ export default defineConfig({
       unknownGlobalSideEffects: false
     }
   },
-  define: {
-    __API_URL__: JSON.stringify(process.env.NODE_ENV === 'production' ? 'https://cards.skorbord.app' : 'http://localhost:2525')
-  },
   test: {
     globals: true,
     environment: 'jsdom',

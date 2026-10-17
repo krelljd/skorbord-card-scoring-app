@@ -1,0 +1,30 @@
+# Production compose file for the Hostinger VPS (Ubuntu 24.04 with Docker and Traefik).
+# Lives on the VPS at /docker/skorbord-card-scoring-app/docker-compose.yml and is
+# copied there by .github/workflows/deploy-vps.yml. Secrets come from the .env
+# file next to it on the VPS (ADMIN_PIN), never from the repo.
+#
+# Traefik on this VPS runs with network_mode: host, the docker provider with
+# exposedbydefault=false, entrypoint "websecure" and cert resolver "letsencrypt".
+services:
+  app:
+    image: ghcr.io/krelljd/skorbord-card-scoring-app:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "2525"
+      DATABASE_URL: sqlite:////data/cards-sqlite.db
+      ADMIN_PIN: ${ADMIN_PIN:?set ADMIN_PIN in the .env file next to this compose file}
+      # Traefik reaches the container from the docker bridge gateway (172.16/12),
+      # not loopback, so trust private ranges to read the real client IP.
+      TRUST_PROXY: uniquelocal
+    volumes:
+      - skorbord-data:/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.skorbord.rule=Host(`cinderglyph.cloud`) || Host(`www.cinderglyph.cloud`)
+      - traefik.http.routers.skorbord.entrypoints=websecure
+      - traefik.http.routers.skorbord.tls.certresolver=letsencrypt
+      - traefik.http.services.skorbord.loadbalancer.server.port=2525
+
+volumes:
+  skorbord-data:
