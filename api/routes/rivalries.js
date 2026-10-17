@@ -60,7 +60,15 @@ router.get('/', async (req, res, next) => {
         WHERE rp.rivalry_id = ?
         ORDER BY p.name ASC
       `, [rivalry.id]);
-      rivalry.players = players;
+      // Finalized wins per player across all game types, for the list view
+      const winRows = await db.query(`
+        SELECT winner_id, COUNT(*) as wins
+        FROM games
+        WHERE rivalry_id = ? AND finalized = true AND winner_id IS NOT NULL
+        GROUP BY winner_id
+      `, [rivalry.id]);
+      const winsById = Object.fromEntries(winRows.map(w => [w.winner_id, Number(w.wins)]));
+      rivalry.players = players.map(p => ({ ...p, wins: winsById[p.id] || 0 }));
       rivalry.player_names = players.map(p => p.name);
 
       // Get all game types played by this rivalry
