@@ -824,6 +824,7 @@
   }
   .rv-wins { font-size: 2rem; color: var(--c); }
   .rv-wins-muted { color: color-mix(in oklab, var(--color-base-content) 55%, transparent); }
+}
 
 /* Score history (summary card, round cards) */
 @layer components {
