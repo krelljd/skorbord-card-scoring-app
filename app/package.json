@@ -23,7 +23,7 @@
     "daisyui": "^5.0.46",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.30.6",
+    "react-router-dom": "^7.18.4",
     "socket.io-client": "^4.8.1",
     "tailwindcss": "^4.1.11"
   },
@@ -34,12 +34,12 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^5.0.5",
     "jsdom": "^25.0.1",
     "msw": "^2.6.6",
     "tailwindcss-animate": "^1.0.7",
-    "vite": "^6.0.3",
-    "vitest": "^2.1.8"
+    "vite": "^6.4.4",
+    "vitest": "^5.0.5"
   },
   "engines": {
     "node": ">=18.0.0"
