@@ -9,6 +9,9 @@ concurrency:
   group: deploy-vps
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 env:
   IMAGE: ghcr.io/krelljd/skorbord-card-scoring-app
 
