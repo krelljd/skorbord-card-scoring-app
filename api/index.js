@@ -51,14 +51,25 @@ const app = express();
 // Docker the proxy is not loopback; set TRUST_PROXY (e.g. 'uniquelocal').
 app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 
+// Origins allowed to call the API and open sockets in production. Set
+// ALLOWED_ORIGINS (comma separated) to override the defaults.
+const DEFAULT_PROD_ORIGINS = [
+  'https://cards.skorbord.app',
+  'https://cinderglyph.cloud',
+  'https://www.cinderglyph.cloud'
+];
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? (process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+      : DEFAULT_PROD_ORIGINS)
+  : ['http://localhost:2424'];
+
 const httpServer = createServer(app);
 
 // Configure Socket.IO
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production'
-      ? ['https://cards.skorbord.app']
-      : ['http://localhost:2424'],
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -97,9 +108,7 @@ app.use(limiter);
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://cards.skorbord.app']
-    : ['http://localhost:2424'],
+  origin: allowedOrigins,
   credentials: true
 }));
 
