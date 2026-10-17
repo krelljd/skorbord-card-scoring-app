@@ -37,7 +37,7 @@ export const ConnectionProvider = ({ children, sqid }) => {
   useEffect(() => {
     if (!sqid) return
 
-    const socketUrl = process.env.NODE_ENV === 'production' ? __API_URL__ : 'http://localhost:2525'
+    const socketUrl = process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:2525'
     const newSocket = createSocket(socketUrl)
 
     newSocket.on('connect', () => {
