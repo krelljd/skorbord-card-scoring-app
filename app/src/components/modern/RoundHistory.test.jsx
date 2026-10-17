@@ -41,12 +41,8 @@ describe('RoundHistory', () => {
     ]
   }
 
-  it('shows parts and part averages only when asked, and the crib average counts dealt rounds only', () => {
+  it('always shows parts and part averages, and the crib average counts dealt rounds only', () => {
     render(<RoundHistory roundState={cribState} onEdit={() => {}} onClose={() => {}} canEdit />)
-    expect(screen.queryAllByTestId('cell-parts')).toHaveLength(0)
-    expect(screen.queryAllByText('Hand')).toHaveLength(2)
-
-    fireEvent.click(screen.getByLabelText('Show parts'))
     const cells = screen.getAllByTestId('cell-parts').map((c) => c.textContent)
     // Newest round first
     expect(cells).toEqual(['2 / 4', '6 / 4 / 4', '4 / 12 / 8', '4 / 6'])
@@ -55,15 +51,15 @@ describe('RoundHistory', () => {
     expect(ann).toHaveTextContent('8Crib')
   })
 
-  it('has no parts toggle for games without parts', () => {
+  it('shows no parts for games without parts', () => {
     render(<RoundHistory roundState={roundState} onEdit={() => {}} onClose={() => {}} canEdit />)
+    expect(screen.queryAllByTestId('cell-parts')).toHaveLength(0)
     expect(screen.queryByLabelText('Show parts')).toBeNull()
   })
 
-  it('correcting a cell in parts view sends the part', () => {
+  it('correcting a cell on a round with parts sends the part', () => {
     const onEdit = vi.fn()
     render(<RoundHistory roundState={cribState} onEdit={onEdit} onClose={() => {}} canEdit />)
-    fireEvent.click(screen.getByLabelText('Show parts'))
     fireEvent.click(screen.getByLabelText('Edit round 1 for Ann'))
     fireEvent.click(screen.getByTestId('value-hand'))
     fireEvent.click(screen.getByText('9'))
