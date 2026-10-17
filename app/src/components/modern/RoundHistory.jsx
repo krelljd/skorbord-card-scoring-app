@@ -67,7 +67,6 @@ const TotalsChart = ({ players, rows, target }) => {
 
 const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
   const [editing, setEditing] = useState(null)
-  const [showParts, setShowParts] = useState(false)
   const tracksParts = Array.isArray(roundState?.game?.score_parts) && roundState.game.score_parts.length > 0
   const target = roundState?.game?.win_condition_type === 'win' ? Number(roundState.game.win_condition_value) || null : null
 
@@ -130,7 +129,7 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
 
   // The sheet reads the live round, since each correction bumps its revision
   const liveRound = editing ? (roundState?.rounds || []).find((r) => r.round_number === editing.round.round_number) : null
-  const sheetParts = editing && showParts ? liveRound?.parts?.[editing.playerId] : null
+  const sheetParts = editing ? liveRound?.parts?.[editing.playerId] : null
 
   return (
     <div className="modal modal-open" role="dialog" aria-label="Score history">
@@ -141,18 +140,6 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
         <div className="flex items-center justify-between px-4 sm:px-6 pt-4 pb-3 border-b border-base-300 shrink-0">
           <h3 className="font-bold text-lg">Score history</h3>
           <div className="flex items-center gap-2">
-            {tracksParts && (
-              <label className="label cursor-pointer gap-2 p-0">
-                <span className="text-sm">Show parts</span>
-                <input
-                  type="checkbox"
-                  className="toggle toggle-sm"
-                  checked={showParts}
-                  onChange={(e) => setShowParts(e.target.checked)}
-                  aria-label="Show parts"
-                />
-              </label>
-            )}
             <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>
               Close
             </button>
@@ -219,7 +206,7 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
                     >
                       <div className="pc-avatar rh-mini" aria-hidden="true">{nameOf(cell.playerId).trim().charAt(0).toUpperCase()}</div>
                       <span className="flex-1 min-w-0 truncate text-left text-sm font-semibold">{nameOf(cell.playerId)}</span>
-                      {showParts && round.parts?.[cell.playerId] && (
+                      {round.parts?.[cell.playerId] && (
                         <span className="rh-parts" data-testid="cell-parts">
                           {PARTS.filter((k) => k !== 'crib' || round.dealer_id === cell.playerId)
                             .map((k) => round.parts[cell.playerId][k])
