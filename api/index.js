@@ -47,8 +47,9 @@ const app = express();
 // proxies. In production, cloudflared connects to this process over
 // localhost, so this lets Express take the X-Forwarded-For entry that
 // cloudflared appends (the real client IP) for req.ip / rate limiting,
-// without trusting arbitrary client-supplied XFF headers.
-app.set('trust proxy', 'loopback');
+// without trusting arbitrary client-supplied XFF headers. Behind Traefik in
+// Docker the proxy is not loopback; set TRUST_PROXY (e.g. 'uniquelocal').
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 
 const httpServer = createServer(app);
 
