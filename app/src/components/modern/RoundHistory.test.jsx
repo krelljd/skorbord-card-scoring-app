@@ -20,14 +20,16 @@ const roundState = {
 describe('RoundHistory', () => {
   it('averages real rounds only, skipping the earlier row and the open round', () => {
     render(<RoundHistory roundState={roundState} onEdit={() => {}} onClose={() => {}} canEdit />)
-    const row = screen.getByText('Avg per round').closest('tr')
-    expect(row).toHaveTextContent('8')
-    expect(row).toHaveTextContent('2')
+    const [ann, bob] = screen.getAllByTestId('summary-player')
+    expect(ann).toHaveTextContent('8Avg/rnd')
+    expect(bob).toHaveTextContent('2Avg/rnd')
   })
 
   it('totals include the earlier row', () => {
     render(<RoundHistory roundState={roundState} onEdit={() => {}} onClose={() => {}} canEdit />)
-    expect(screen.getByText('Total').closest('tr')).toHaveTextContent('106')
+    const [ann, bob] = screen.getAllByTestId('summary-player')
+    expect(ann).toHaveTextContent('106')
+    expect(bob).toHaveTextContent('74')
   })
 
   const cribState = {
@@ -42,13 +44,15 @@ describe('RoundHistory', () => {
   it('shows parts and part averages only when asked, and the crib average counts dealt rounds only', () => {
     render(<RoundHistory roundState={cribState} onEdit={() => {}} onClose={() => {}} canEdit />)
     expect(screen.queryAllByTestId('cell-parts')).toHaveLength(0)
-    expect(screen.queryByText('Avg hand')).toBeNull()
+    expect(screen.queryAllByText('Hand')).toHaveLength(2)
 
     fireEvent.click(screen.getByLabelText('Show parts'))
     const cells = screen.getAllByTestId('cell-parts').map((c) => c.textContent)
-    expect(cells).toEqual(['4 / 12 / 8', '4 / 6', '2 / 4', '6 / 4 / 4'])
-    expect(screen.getByText('Avg hand').closest('tr')).toHaveTextContent('8')
-    expect(screen.getByText('Avg crib').closest('tr')).toHaveTextContent('8')
+    // Newest round first
+    expect(cells).toEqual(['2 / 4', '6 / 4 / 4', '4 / 12 / 8', '4 / 6'])
+    const [ann] = screen.getAllByTestId('summary-player')
+    expect(ann).toHaveTextContent('8Hand')
+    expect(ann).toHaveTextContent('8Crib')
   })
 
   it('has no parts toggle for games without parts', () => {
@@ -65,5 +69,15 @@ describe('RoundHistory', () => {
     fireEvent.click(screen.getByText('9'))
     fireEvent.click(screen.getByText('Save'))
     expect(onEdit).toHaveBeenCalledWith(1, 'a', 9, 1, 'hand')
+  })
+
+  it('shows each round newest first with a running average, and none on the earlier row', () => {
+    render(<RoundHistory roundState={roundState} onEdit={() => {}} onClose={() => {}} canEdit />)
+    const cards = screen.getAllByTestId('round-card')
+    expect(cards).toHaveLength(3)
+    expect(cards[0]).toHaveTextContent('Round 3')
+    expect(cards[0]).toHaveTextContent('avg 8')
+    expect(cards[2]).toHaveTextContent('Earlier rounds')
+    expect(cards[2]).not.toHaveTextContent('avg')
   })
 })
