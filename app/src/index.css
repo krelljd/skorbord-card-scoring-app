@@ -812,6 +812,20 @@
   .st-danger { display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--color-base-300); padding-top: 0.625rem; }
 }
 
+/* Rivalry list (summary cards matching Score History) */
+@layer components {
+  .rv-card { cursor: pointer; transition: background-color .15s; }
+  .rv-card:hover { background: var(--color-base-200); }
+  .rv-card:focus-visible { outline: 3px solid var(--color-base-content); outline-offset: 2px; }
+  .rv-type {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.625rem; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0.2rem 0.5rem; border-radius: 0.5rem; background: var(--color-base-200); border: 1px solid var(--color-base-300);
+    color: color-mix(in oklab, var(--color-base-content) 80%, transparent);
+  }
+  .rv-wins { font-size: 2rem; color: var(--c); }
+  .rv-wins-muted { color: color-mix(in oklab, var(--color-base-content) 55%, transparent); }
+}
+
 /* Score history (summary card, round cards) */
 @layer components {
   .rh-summary {

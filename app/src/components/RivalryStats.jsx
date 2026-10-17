@@ -1,6 +1,57 @@
 import React, { useState } from 'react'
-import { getPlayerTextColorClassByName } from '../utils/playerColors'
 import RivalryStatsDetail from './RivalryStatsDetail.jsx'
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/**
+ * One rivalry in the list, in the Score History summary style: player rows with a big wins number,
+ * the leader in their color and the rest muted. Colors follow list position, like the detail view.
+ */
+const RivalryCard = ({ rivalry, onOpen }) => {
+  const players = Array.isArray(rivalry.players) && rivalry.players.length > 0
+    ? rivalry.players
+    : (Array.isArray(rivalry.player_names) && rivalry.player_names.length > 0
+      ? rivalry.player_names.map((name, i) => ({ id: `${rivalry.id}-${i}`, name }))
+      : [{ id: `${rivalry.id}-0`, name: 'Unknown Players' }])
+  const rows = players.map((p, index) => ({ ...p, index, wins: Number(p.wins) || 0 }))
+  const total = Number(rivalry.total_games) || 0
+  const top = Math.max(...rows.map((r) => r.wins))
+  const hasLeader = rows.length > 1 && top > 0 && rows.filter((r) => r.wins === top).length === 1
+  const ordered = [...rows].sort((a, b) => b.wins - a.wins)
+  const types = Array.isArray(rivalry.game_types) ? rivalry.game_types : []
+
+  return (
+    <button type="button" className="rh-summary rv-card text-left w-full" onClick={() => onOpen(rivalry)}>
+      <div className="flex items-center">
+        <span className="pc-label flex-1">{plural(total, 'game')}</span>
+        <span className="pc-label">View stats ›</span>
+      </div>
+      {ordered.map((p) => {
+        const lead = hasLeader && p.wins === top
+        const share = total ? Math.min(100, Math.round((p.wins / total) * 100)) : 0
+        return (
+          <div key={p.id} className="flex flex-col gap-1.5" style={{ '--c': `var(--pc-${p.index % 8})` }}>
+            <div className="flex items-center gap-2">
+              <div className="pc-avatar rh-mini" aria-hidden="true">{(p.name || '?').trim().charAt(0).toUpperCase()}</div>
+              <span className="flex-1 min-w-0 truncate font-bold">
+                {p.name}
+                {lead && <span className="pc-label ml-2" style={{ color: 'var(--c)' }}>Leads</span>}
+              </span>
+              <span className={`pc-score rv-wins ${lead ? '' : 'rv-wins-muted'}`}>{p.wins}</span>
+              <span className="pc-label w-8">{p.wins === 1 ? 'win' : 'wins'}</span>
+            </div>
+            <div className="pc-track" role="img" aria-label={`${p.name} has won ${share}% of games`}><i style={{ width: `${share}%` }} /></div>
+          </div>
+        )
+      })}
+      {types.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {types.map((gt) => <span key={gt.id} className="rv-type">{gt.name}</span>)}
+        </div>
+      )}
+    </button>
+  )
+}
 
 const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, onManage }) => {
   const [selectedRivalry, setSelectedRivalry] = useState(null)
@@ -121,47 +172,7 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, on
         </div>
       ) : (
           <div className="space-y-3">
-            {rivalries.map(rivalry => {
-              // Fallback logic for player names in rivalry list
-              const listPlayerNames = Array.isArray(rivalry.player_names) && rivalry.player_names.length > 0
-                ? rivalry.player_names
-                : (Array.isArray(rivalry.players) && rivalry.players.length > 0
-                  ? rivalry.players.map(p => p.name)
-                  : ['Unknown Players']);
-              return (
-                <div 
-                  key={rivalry.id}
-                  className="card bg-base-200 p-4 cursor-pointer hover:bg-base-300 transition-colors"
-                  onClick={() => selectRivalry(rivalry)}
-                >
-                  <div className="flex flex-col gap-2">
-                    <h3 className="font-semibold text-lg">
-                      {listPlayerNames.map((playerName, index) => {
-                        const colorClass = getPlayerTextColorClassByName(playerName, localPlayers);
-                        return (
-                          <span key={index}>
-                            <span className={colorClass}>
-                              {playerName}
-                            </span>
-                            {index < listPlayerNames.length - 1 && ' vs '}
-                          </span>
-                        );
-                      })}
-                    </h3>
-                    {/* Show all game types played by this rivalry */}
-                    {Array.isArray(rivalry.game_types) && rivalry.game_types.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {rivalry.game_types.map(gt => (
-                          <span key={gt.id} className="badge badge-outline badge-info">
-                            {gt.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {rivalries.map(rivalry => <RivalryCard key={rivalry.id} rivalry={rivalry} onOpen={selectRivalry} />)}
           </div>
       )}
     </div>
