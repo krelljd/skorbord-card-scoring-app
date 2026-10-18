@@ -11,11 +11,16 @@ import { PARTS, PART_LABELS } from '../../utils/cribbage.js'
  */
 // Same palette as the player cards, so a player keeps one color everywhere
 const playerColor = (i) => `var(--pc-${i % 8})`
+// colorOrder (optional) lists player ids in the order another screen colors them, so a player keeps one color there
+const colorIndexOf = (colorOrder, playerId, i) => {
+  const k = colorOrder ? colorOrder.indexOf(playerId) : -1
+  return k >= 0 ? k : i
+}
 const round1 = (n) => Math.round(n * 10) / 10
 const signed = (n) => (n > 0 ? `+${n}` : `${n}`)
 
 /** Running totals after each saved round, one line per player, with the goal line when the game has one. */
-const TotalsChart = ({ players, rows, target }) => {
+const TotalsChart = ({ players, rows, target, colorOrder }) => {
   if (rows.length < 2) return null
   const W = 340
   const H = 150
@@ -47,25 +52,28 @@ const TotalsChart = ({ players, rows, target }) => {
       {rows.map((r, i) => (
         <text key={r.round.round_number} x={x(i)} y={H - 4} textAnchor="middle" fontSize="9" fill="currentColor" opacity=".7">{i + 1}</text>
       ))}
-      {players.map((p, pi) => (
+      {players.map((p, pi) => {
+        const color = playerColor(colorIndexOf(colorOrder, p.player_id, pi))
+        return (
         <g key={p.player_id}>
           <polyline
             fill="none"
-            stroke={playerColor(pi)}
+            stroke={color}
             strokeWidth="2.5"
             strokeLinejoin="round"
             strokeLinecap="round"
             points={rows.map((r, i) => `${x(i)},${y(r.cells[pi].running)}`).join(' ')}
           />
-          <circle cx={x(rows.length - 1)} cy={y(last[pi].running)} r="4" fill={playerColor(pi)} />
-          <text x={x(rows.length - 1) + 7} y={labelY(pi)} fontSize="11" fontWeight="800" fill={playerColor(pi)}>{last[pi].running}</text>
+          <circle cx={x(rows.length - 1)} cy={y(last[pi].running)} r="4" fill={color} />
+          <text x={x(rows.length - 1) + 7} y={labelY(pi)} fontSize="11" fontWeight="800" fill={color}>{last[pi].running}</text>
         </g>
-      ))}
+        )
+      })}
     </svg>
   )
 }
 
-const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
+const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title = 'Score history', subtitle }) => {
   const [editing, setEditing] = useState(null)
   const tracksParts = Array.isArray(roundState?.game?.score_parts) && roundState.game.score_parts.length > 0
   const target = roundState?.game?.win_condition_type === 'win' ? Number(roundState.game.win_condition_value) || null : null
@@ -132,13 +140,16 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
   const sheetParts = editing ? liveRound?.parts?.[editing.playerId] : null
 
   return (
-    <div className="modal modal-open" role="dialog" aria-label="Score history">
+    <div className="modal modal-open" role="dialog" aria-label={title}>
       {/* daisyUI caps the box at 100vh, which on iPhone Safari is taller than the visible area, so the top
           (title, toggle, Close) ends up off screen and cannot be scrolled to. Cap it at the dynamic viewport
           instead, keep the header fixed and scroll only the body. */}
       <div className="modal-box max-w-3xl flex flex-col p-0 max-h-[calc(100dvh-1.5rem)]">
         <div className="flex items-center justify-between px-4 sm:px-6 pt-4 pb-3 border-b border-base-300 shrink-0">
-          <h3 className="font-bold text-lg">Score history</h3>
+          <div className="min-w-0">
+            <h3 className="font-bold text-lg">{title}</h3>
+            {subtitle && <div className="pc-label truncate">{subtitle}</div>}
+          </div>
           <div className="flex items-center gap-2">
             <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>
               Close
@@ -154,9 +165,9 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
           ) : (
             <div className="flex flex-col gap-2">
               <div className="rh-summary">
-                <span className="pc-label">Game so far · {rows.filter((r) => !r.round.is_backfill).length} rounds</span>
+                <span className="pc-label">{subtitle ? 'Final' : 'Game so far'} · {rows.filter((r) => !r.round.is_backfill).length} rounds</span>
                 {players.map((p, i) => (
-                  <div key={p.player_id} className="flex flex-col gap-2" style={{ '--c': playerColor(i) }} data-testid="summary-player">
+                  <div key={p.player_id} className="flex flex-col gap-2" style={{ '--c': playerColor(colorIndexOf(colorOrder, p.player_id, i)) }} data-testid="summary-player">
                     <div className="flex items-center gap-2">
                       <div className="pc-avatar" aria-hidden="true">{p.player_name.trim().charAt(0).toUpperCase()}</div>
                       <span className="flex-1 min-w-0 truncate font-bold">
@@ -183,7 +194,7 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
                 {tracksParts && <span className="rh-note">Crib average counts only rounds that player dealt.</span>}
               </div>
 
-              <TotalsChart players={players} rows={rows} target={target} />
+              <TotalsChart players={players} rows={rows} target={target} colorOrder={colorOrder} />
 
               <span className="pc-label mt-1">Rounds · newest first{canEdit ? ' · tap a score to correct' : ''}</span>
               {[...rows].reverse().map(({ round, cells }) => (
@@ -199,7 +210,7 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit }) => {
                       key={cell.playerId}
                       type="button"
                       className="flex items-center gap-2 min-h-11 w-full disabled:cursor-default"
-                      style={{ '--c': playerColor(i) }}
+                      style={{ '--c': playerColor(colorIndexOf(colorOrder, cell.playerId, i)) }}
                       disabled={!canEdit}
                       onClick={() => setEditing({ round, playerId: cell.playerId, points: cell.points })}
                       aria-label={`Edit round ${round.round_number} for ${nameOf(cell.playerId)}`}

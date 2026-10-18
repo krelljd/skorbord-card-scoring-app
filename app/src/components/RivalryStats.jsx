@@ -123,6 +123,7 @@ const RivalryStats = ({ sqid, rivalries, players: globalPlayers, backToSetup, on
     }
     return (
       <RivalryStatsDetail
+        sqid={sqid}
         details={rivalryDetails}
         players={players}
         gameTypes={gameTypes}

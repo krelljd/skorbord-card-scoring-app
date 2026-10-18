@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import RoundHistory from './modern/RoundHistory.jsx'
+import gameAPI from '../services/gameAPI.js'
 import {
   rankPlayers, headToHeadLabel, rankLabel, winPct, marginText,
   formLetters, formSummary, scoreLine, fmt
@@ -27,7 +29,7 @@ const Tile = ({ value, label }) => (
   </div>
 )
 
-function RecentGames({ games, players, directionByName }) {
+function RecentGames({ games, players, directionByName, onOpen }) {
   if (!games?.length) return null
   return (
     <section className="st-card" aria-labelledby="st-recent">
@@ -41,13 +43,16 @@ function RecentGames({ games, players, directionByName }) {
             : ''
           const higher = directionByName[game.game_type_name] !== false
           return (
-            <li key={game.id} className="st-game">
+            <li key={game.id}>
+            <button type="button" className="st-game w-full text-left" onClick={() => onOpen(game)} aria-label={`Score history, ${winnerName} won${date ? `, ${date}` : ''}`}>
               <Pill name={winnerName} index={Math.max(idx, 0)} />
               <div className="min-w-0">
                 <div className="font-semibold text-sm truncate">{winnerName} won</div>
                 <div className="st-key">{[date, game.game_type_name].filter(Boolean).join(' · ')}</div>
               </div>
               <div className="st-score">{scoreLine(game.player_scores, game.winner_id, higher)}</div>
+              <span className="st-key" aria-hidden="true">›</span>
+            </button>
             </li>
           )
         })}
@@ -185,8 +190,19 @@ function SkunksCard({ entries }) {
  * Detail view for one rivalry: recent games first, then a tab per game type with a
  * card per player (full card for two players, compact ranked cards for three or more).
  */
-export default function RivalryStatsDetail({ details, gameTypes, players, onBack, backToSetup, error, loading }) {
+export default function RivalryStatsDetail({ sqid, details, gameTypes, players, onBack, backToSetup, error, loading }) {
   const [selectedType, setSelectedType] = useState(null)
+  const [history, setHistory] = useState(null) // { game, roundState, error }
+
+  const openHistory = async (game) => {
+    setHistory({ game, roundState: null, error: null })
+    try {
+      const roundState = await gameAPI.getRounds(sqid, game.id)
+      setHistory((h) => (h?.game.id === game.id ? { ...h, roundState } : h))
+    } catch (err) {
+      setHistory((h) => (h?.game.id === game.id ? { ...h, error: err.message || 'Could not load this game' } : h))
+    }
+  }
   const activeId = gameTypes.some((g) => g.id === selectedType) ? selectedType : gameTypes[0]?.id
   const gt = gameTypes.find((g) => g.id === activeId)
   const higherIsBetter = gt ? gt.is_win_condition !== 0 && gt.is_win_condition !== false : true
@@ -230,7 +246,7 @@ export default function RivalryStatsDetail({ details, gameTypes, players, onBack
         <div className="flex justify-center"><div className="loading-state"></div></div>
       ) : (
         <>
-          <RecentGames games={details.recent_games} players={players} directionByName={directionByName} />
+          <RecentGames games={details.recent_games} players={players} directionByName={directionByName} onOpen={openHistory} />
           <GameTypeTabs gameTypes={gameTypes} selected={activeId} onSelect={setSelectedType} />
           {!higherIsBetter && <p className="st-note">{gt.name}: lower score wins. Best round is the lowest.</p>}
           {entries.map((entry) => <PlayerCard key={entry.player.id} entry={entry} compact={compact} higherIsBetter={higherIsBetter} />)}
@@ -238,6 +254,23 @@ export default function RivalryStatsDetail({ details, gameTypes, players, onBack
           <SkunksCard entries={entries} />
           <button className="btn btn-primary w-full min-h-11" onClick={backToSetup}>Start New Game</button>
         </>
+      )}
+      {history && history.roundState && (
+        <RoundHistory
+          roundState={history.roundState}
+          canEdit={false}
+          colorOrder={players.map((p) => p.id)}
+          subtitle={[history.game.game_type_name, history.game.completed_at && new Date(history.game.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })].filter(Boolean).join(' · ')}
+          onClose={() => setHistory(null)}
+        />
+      )}
+      {history && !history.roundState && (
+        <div className="modal modal-open" role="dialog" aria-label="Score history">
+          <div className="modal-box">
+            {history.error ? <p>{history.error}</p> : <div className="flex justify-center"><div className="loading-state"></div></div>}
+            <div className="modal-action"><button type="button" className="btn btn-sm btn-ghost" onClick={() => setHistory(null)}>Close</button></div>
+          </div>
+        </div>
       )}
     </div>
   )
