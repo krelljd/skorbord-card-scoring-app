@@ -17,6 +17,9 @@ services:
       # Traefik reaches the container from the docker bridge gateway (172.16/12),
       # not loopback, so trust private ranges to read the real client IP.
       TRUST_PROXY: uniquelocal
+      # Per-IP cap per minute. Socket.IO polling and a shared Wi-Fi are chatty, so
+      # this stays well above normal play.
+      RATE_LIMIT_MAX: "300"
     volumes:
       - skorbord-data:/data
     labels:
@@ -24,6 +27,11 @@ services:
       - traefik.http.routers.skorbord.rule=Host(`cards.skorbord.app`) || Host(`cinderglyph.cloud`) || Host(`www.cinderglyph.cloud`)
       - traefik.http.routers.skorbord.entrypoints=websecure
       - traefik.http.routers.skorbord.tls.certresolver=letsencrypt
+      - traefik.http.routers.skorbord.middlewares=skorbord-ratelimit
+      # Generous backstop in front of the in-app limiter, keyed on the client IP.
+      - traefik.http.middlewares.skorbord-ratelimit.ratelimit.average=100
+      - traefik.http.middlewares.skorbord-ratelimit.ratelimit.period=1s
+      - traefik.http.middlewares.skorbord-ratelimit.ratelimit.burst=200
       - traefik.http.services.skorbord.loadbalancer.server.port=2525
 
 volumes:
