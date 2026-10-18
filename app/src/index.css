@@ -791,6 +791,12 @@
   }
 }
 
+/* The themes omit these daisyUI sizing tokens, which collapses badge padding to zero (text clips into a circle). */
+.badge {
+  --size-selector: 0.25rem;
+  --border: 1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
