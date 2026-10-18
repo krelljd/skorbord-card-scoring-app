@@ -38,7 +38,7 @@ const PlaySheet = ({ players, dealerId, target = null, onAdd, onClose }) => {
   const playPoints = (p) => p.draft_parts?.play ?? p.draft ?? 0
 
   return (
-    <div className="modal modal-open modal-bottom sm:modal-middle" role="dialog" aria-label="Play">
+    <div className="modal modal-open modal-middle" role="dialog" aria-label="Play">
       <div className="modal-box">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-lg">Play</h3>
