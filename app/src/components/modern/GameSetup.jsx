@@ -1,465 +1,322 @@
-import { useState, useEffect } from 'react'
-import { useForm, useLoading } from '../../hooks/useUIState.js'
+import { useState, useEffect, useMemo } from 'react'
+import { useLoading } from '../../hooks/useUIState.js'
 import { useToast } from '../../hooks/useUIState.js'
 import gameAPI from '../../services/gameAPI.js'
 import { LoadingSpinner } from '../Loading.jsx'
+import { matchPlayerName, sortPlayersForChips, sortGameTypesForChips } from '../../utils/playerMatch.js'
+import { rematchDealer } from '../../utils/gameResult.js'
+
+const MAX_PLAYERS = 8
+const colorOf = (i) => `var(--pc-${i % 8})`
 
 /**
- * Modern GameSetup component with:
- * - useForm hook for form state management
- * - DaisyUI form components and validation states
- * - LoadingButton for async operations
- * - Proper accessibility features
- * - gameAPI service integration
+ * Game setup: tap a game type, tap the players, choose who deals first, start.
+ * "Same again" repeats the last game (same type, players and win condition) with the dealer alternated.
+ * New names are matched against known players so one person keeps one set of stats.
  */
-const GameSetup = ({ 
+const GameSetup = ({
   sqid,
   gameTypes = [],
   players = [],
-  rivalries = [],
   onGameStart
 }) => {
-  const { error: showError, success: showSuccess } = useToast()
+  const { error: showError } = useToast()
   const { loading: isLoading, withLoading } = useLoading()
-  
-  // Form state using modern hook
-  const { values, errors, setValue, setErrors, isValid } = useForm({
-    gameType: '',
-    players: ['', ''],
-    useCustomWinCondition: false,
-    customWinConditionType: 'win',
-    customWinConditionValue: 100
+
+  const typeChips = useMemo(() => sortGameTypesForChips(gameTypes), [gameTypes])
+  const knownPlayers = useMemo(() => sortPlayersForChips(players), [players])
+
+  const [showAllTypes, setShowAllTypes] = useState(false)
+  const [gameType, setGameType] = useState('')
+  const [useCustom, setUseCustom] = useState(false)
+  const [customType, setCustomType] = useState('win')
+  const [customValue, setCustomValue] = useState(100)
+  const [picked, setPicked] = useState([]) // [{ key, name, id? }] in seat order
+  const [newPlayers, setNewPlayers] = useState([]) // names added this visit, not saved yet
+  const [adding, setAdding] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [dealerKey, setDealerKey] = useState('random')
+  const [last, setLast] = useState(null) // { game, playerIds, dealerId } for Same again
+  const [starting, setStarting] = useState(false)
+
+  // Default to the first favorite (or the first game type) until the person chooses
+  useEffect(() => {
+    if (!gameType && typeChips.length) setGameType(typeChips[0].id)
+  }, [typeChips, gameType])
+
+  // Load the last game from the server, so Same again works on any phone using this link
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await gameAPI.request(`/api/${sqid}/games?limit=1`)
+        const game = res?.data?.[0]
+        if (!game || !Array.isArray(game.players) || game.players.length < 2) return
+        const roundState = await gameAPI.getRounds(sqid, game.id).catch(() => null)
+        const ids = game.players.map((p) => p.id)
+        const firstDealer = (roundState?.rounds || []).filter((r) => !r.is_backfill).sort((a, b) => a.round_number - b.round_number)[0]?.dealer_id || game.dealer_id
+        if (!cancelled) setLast({ game, players: game.players, dealerId: rematchDealer(ids, firstDealer) })
+      } catch {
+        // No history yet, or offline: the card just does not show
+      }
+    })()
+    return () => { cancelled = true }
+  }, [sqid])
+
+  const selectedType = gameTypes.find((g) => g.id === gameType)
+  const sameAgainType = last && gameTypes.find((g) => g.id === last.game.game_type_id)
+  const typesShown = showAllTypes ? typeChips : typeChips.filter((g) => g.is_favorited || g.id === gameType)
+  const hiddenCount = typeChips.length - typesShown.length
+
+  const pool = [
+    ...knownPlayers.map((p) => ({ key: p.id, id: p.id, name: p.name })),
+    ...newPlayers.map((name) => ({ key: `new:${name.toLowerCase()}`, name }))
+  ]
+  const isPicked = (key) => picked.some((p) => p.key === key)
+  const seat = (key) => picked.findIndex((p) => p.key === key)
+
+  const toggle = (entry) => {
+    if (isPicked(entry.key)) {
+      setPicked(picked.filter((p) => p.key !== entry.key))
+      if (dealerKey === entry.key) setDealerKey('random')
+    } else if (picked.length < MAX_PLAYERS) {
+      setPicked([...picked, entry])
+    }
+  }
+
+  const match = matchPlayerName(typed, [...knownPlayers, ...newPlayers.map((name) => ({ name }))])
+
+  const addTyped = () => {
+    const name = typed.trim()
+    if (!name) return
+    // Same person as someone known: use that chip
+    const known = knownPlayers.find((p) => p.name.trim().toLowerCase() === name.toLowerCase())
+    const entry = known ? { key: known.id, id: known.id, name: known.name } : { key: `new:${name.toLowerCase()}`, name }
+    if (!known && !newPlayers.some((n) => n.toLowerCase() === name.toLowerCase())) setNewPlayers([...newPlayers, name])
+    if (!isPicked(entry.key) && picked.length < MAX_PLAYERS) setPicked([...picked, entry])
+    setTyped('')
+    setAdding(false)
+  }
+
+  const winCondition = (type, value) => ({
+    win_condition_type: useCustom ? customType : (type?.is_win_condition ? 'win' : 'lose'),
+    win_condition_value: useCustom ? parseInt(customValue) : (type?.is_win_condition ? type.win_condition : type?.loss_condition)
   })
 
-  // Helper function to set individual field errors
-  const setError = (field, error) => {
-    setErrors(prev => ({ ...prev, [field]: error }))
-  }
+  const canStart = Boolean(gameType) && picked.length >= 2 && (!useCustom || Number(customValue) > 0)
 
-  // Additional UI state
-  const [selectedRivalry, setSelectedRivalry] = useState('')
-
-  // Get favorited game types for quick access
-  const favoritedGameTypes = gameTypes.filter(gt => gt.is_favorited) || []
-
-  // Helper to get player names from rivalry
-  const getRivalryPlayerNames = (rivalry) => {
-    if (rivalry.players && Array.isArray(rivalry.players)) {
-      return rivalry.players.map(p => p.name)
-    }
-    return rivalry.player_names || []
-  }
-
-  // Handle random favorite game type selection
-  const selectRandomFavorite = () => {
-    if (favoritedGameTypes.length > 0) {
-      const randomType = favoritedGameTypes[Math.floor(Math.random() * favoritedGameTypes.length)]
-      setValue('gameType', randomType.id)
-      setError('gameType', '')
-      setValue('useCustomWinCondition', false)
-      showSuccess(`Selected ${randomType.name} randomly!`)
-    }
-  }
-
-  // Handle random game type selection (from all game types)
-  const selectRandomGameType = () => {
-    if (gameTypes.length > 0) {
-      const randomType = gameTypes[Math.floor(Math.random() * gameTypes.length)]
-      setValue('gameType', randomType.id)
-      setError('gameType', '')
-      setValue('useCustomWinCondition', false)
-      showSuccess(`Selected ${randomType.name} randomly!`)
-    }
-  }
-
-  // Real-time form validation check
-  const isFormValid = () => {
-    // Check if game type is selected
-    if (!values.gameType) {
-      return false
-    }
-
-    // Check if at least 2 players have names
-    const nonEmptyPlayers = values.players.filter(name => name.trim())
-    if (nonEmptyPlayers.length < 2) {
-      return false
-    }
-
-    // Check custom win condition if enabled
-    if (values.useCustomWinCondition && (!values.customWinConditionValue || values.customWinConditionValue <= 0)) {
-      return false
-    }
-
-    return true
-  }
-
-  // Form validation rules for submission (sets errors)
-  const validateForm = () => {
-    let isSubmissionValid = true
-    
-    if (!values.gameType) {
-      setError('gameType', 'Please select a game type')
-      isSubmissionValid = false
-    }
-
-    const nonEmptyPlayers = values.players.filter(name => name.trim())
-    if (nonEmptyPlayers.length < 2) {
-      setError('players', 'At least 2 players are required')
-      isSubmissionValid = false
-    }
-
-    if (values.useCustomWinCondition && (!values.customWinConditionValue || values.customWinConditionValue <= 0)) {
-      setError('customWinConditionValue', 'Win condition value must be greater than 0')
-      isSubmissionValid = false
-    }
-
-    return isSubmissionValid
-  }
-
-  // Handle adding player
-  const addPlayer = () => {
-    if (values.players.length < 8) { // Reasonable limit
-      setValue('players', [...values.players, ''])
-    }
-  }
-
-  // Handle removing player
-  const removePlayer = (index) => {
-    if (values.players.length > 2) {
-      const newPlayers = values.players.filter((_, i) => i !== index)
-      setValue('players', newPlayers)
-    }
-  }
-
-  // Handle player name change
-  const updatePlayerName = (index, name) => {
-    const newPlayers = [...values.players]
-    newPlayers[index] = name
-    setValue('players', newPlayers)
-    
-    // Clear players error if we now have enough
-    const nonEmptyPlayers = newPlayers.filter(n => n.trim())
-    if (nonEmptyPlayers.length >= 2) {
-      setError('players', '')
-    }
-  }
-
-  // Handle rivalry selection
-  const handleRivalrySelect = (rivalryId) => {
-    setSelectedRivalry(rivalryId)
-    if (rivalryId) {
-      const rivalry = rivalries.find(r => r.id === rivalryId)
-      if (rivalry) {
-        const names = getRivalryPlayerNames(rivalry)
-        setValue('players', names.length >= 2 ? names : ['', ''])
-        setError('players', '')
-        showSuccess(`Selected rivalry: ${names.join(' vs ')}`)
-      }
-    } else {
-      setValue('players', ['', ''])
-    }
-  }
-
-  // Handle quick game type selection
-  const handleQuickGameSelect = (gameTypeId) => {
-    setValue('gameType', gameTypeId)
-    setError('gameType', '')
-  }
-
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (!validateForm()) {
-      showError('Please fix the form errors before submitting')
-      return
-    }
-
+  const start = async (e) => {
+    e?.preventDefault()
+    if (!canStart) return
     try {
       await withLoading(async () => {
-        const selectedGameTypeData = gameTypes.find(gt => gt.id === values.gameType)
-        const nonEmptyPlayers = values.players.filter(name => name.trim())
-
-        const gameData = {
-          game_type_id: values.gameType,
-          player_names: nonEmptyPlayers.map(name => name.trim()),
-          win_condition_type: values.useCustomWinCondition ? 
-            values.customWinConditionType : 
-            (selectedGameTypeData?.is_win_condition ? 'win' : 'lose'),
-          win_condition_value: values.useCustomWinCondition ? 
-            parseInt(values.customWinConditionValue) : 
-            (selectedGameTypeData?.is_win_condition ? selectedGameTypeData.win_condition : selectedGameTypeData.loss_condition)
+        // Save new names first, so the game and the first dealer can use real player ids
+        const ids = []
+        for (const p of picked) {
+          if (p.id) { ids.push(p.id); continue }
+          try {
+            const res = await gameAPI.request(`/api/${sqid}/players`, { method: 'POST', body: JSON.stringify({ name: p.name }) })
+            ids.push(res.data.id)
+          } catch (err) {
+            if (err.status !== 409) throw err
+            const all = await gameAPI.getPlayers(sqid)
+            const found = all.find((x) => x.name.trim().toLowerCase() === p.name.toLowerCase())
+            if (!found) throw err
+            ids.push(found.id)
+          }
         }
-
-        const newGame = await gameAPI.createGame(sqid, gameData)
-        showSuccess(`Game "${selectedGameTypeData?.name}" created successfully!`)
-        
-        if (onGameStart) {
-          onGameStart(newGame)
-        }
+        const dealerIndex = picked.findIndex((p) => p.key === dealerKey)
+        const game = await gameAPI.createGame(sqid, {
+          game_type_id: gameType,
+          player_ids: ids,
+          ...winCondition(selectedType),
+          ...(dealerIndex >= 0 ? { dealer_id: ids[dealerIndex] } : {})
+        })
+        onGameStart?.(game)
       })
     } catch (error) {
       showError(`Failed to create game: ${error.message}`)
     }
   }
 
-  // Loading state
+  const sameAgain = async () => {
+    setStarting(true)
+    try {
+      const g = last.game
+      const game = await gameAPI.createGame(sqid, {
+        game_type_id: g.game_type_id,
+        player_ids: last.players.map((p) => p.id),
+        win_condition_type: g.win_condition_type,
+        win_condition_value: g.win_condition_value,
+        dealer_id: last.dealerId
+      })
+      onGameStart?.(game)
+    } catch (error) {
+      showError(`Failed to create game: ${error.message}`)
+      setStarting(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-96 space-y-4">
         <LoadingSpinner size="lg" />
-        <p className="text-base-content/70">Loading game setup...</p>
+        <p className="text-base-content/70">Starting game...</p>
       </div>
     )
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-base-content mb-2">Game Setup</h1>
-        <p className="text-base-content/70">Configure your game and add players</p>
-      </div>
+  const dealerName = last?.players.find((p) => p.id === last.dealerId)?.name
 
-      {/* Quick Actions */}
-      {(favoritedGameTypes.length > 0 || gameTypes.length > 0) && (
-        <div className="card bg-base-200 shadow-sm">
-          <div className="card-body">
-            <h2 className="card-title text-lg">Quick Start</h2>
-            {favoritedGameTypes.length > 0 ? (
-              <>
-                <p className="text-sm text-base-content/70 mb-3">Your favorite game types</p>
-                <div className="flex flex-wrap gap-2">
-                  {favoritedGameTypes.map((gameType) => (
-                    <button
-                      key={gameType.id}
-                      className={`btn btn-sm ${values.gameType === gameType.id ? 'btn-primary' : 'btn-outline'}`}
-                      onClick={() => handleQuickGameSelect(gameType.id)}
-                    >
-                      {gameType.name}
-                    </button>
-                  ))}
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={selectRandomFavorite}
-                    title="Select random favorite game type"
-                  >
-                    Random Favorite
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-base-content/70 mb-3">Get started quickly</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={selectRandomGameType}
-                    title="Select random game type"
-                  >
-                    Random Favorite
-                  </button>
-                </div>
-              </>
-            )}
+  return (
+    <form onSubmit={start} className="space-y-4">
+      <h1 className="text-2xl font-bold">New game</h1>
+
+      {last && sameAgainType && (
+        <div className="su-again" style={{ '--c': colorOf(0) }}>
+          <div className="min-w-0 flex-1">
+            <div className="su-again-title">Same again</div>
+            <div className="text-sm truncate">{last.game.game_type_name} · {last.players.map((p) => p.name).join(', ')}</div>
+            {dealerName && <div className="text-sm opacity-80">{dealerName} deals first</div>}
           </div>
+          <button type="button" className="su-again-go" onClick={sameAgain} disabled={starting}>
+            {starting ? 'Starting…' : 'Start'}
+          </button>
         </div>
       )}
 
-      {/* Main Setup Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Game Type Selection */}
-        <div className="card bg-base-100 shadow-sm">
-          <div className="card-body">
-            <h2 className="card-title">Game Type</h2>
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text">Select game type *</span>
-              </label>
-              <select
-                className={`select select-bordered w-full ${errors.gameType ? 'select-error' : ''}`}
-                value={values.gameType}
-                onChange={(e) => {
-                  setValue('gameType', e.target.value)
-                  setError('gameType', '')
-                }}
-                required
-              >
-                <option value="">Choose a game type...</option>
-                {gameTypes.map((gameType) => (
-                  <option key={gameType.id} value={gameType.id}>
-                    {gameType.name}
-                    {gameType.is_favorited && ' ⭐'}
-                  </option>
-                ))}
-              </select>
-              {errors.gameType && (
-                <label className="label">
-                  <span className="label-text-alt text-error">{errors.gameType}</span>
-                </label>
-              )}
-            </div>
-
-            {/* Custom Win Condition */}
-            <div className="form-control">
-              <label className="label cursor-pointer">
-                <span className="label-text">Custom win condition</span>
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-primary"
-                  checked={values.useCustomWinCondition}
-                  onChange={(e) => setValue('useCustomWinCondition', e.target.checked)}
-                />
-              </label>
-            </div>
-
-            {values.useCustomWinCondition && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Condition type</span>
-                  </label>
-                  <select
-                    className="select select-bordered"
-                    value={values.customWinConditionType}
-                    onChange={(e) => setValue('customWinConditionType', e.target.value)}
-                  >
-                    <option value="win">First to reach</option>
-                    <option value="lose">First to go below</option>
-                  </select>
-                </div>
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Points</span>
-                  </label>
-                  <input
-                    type="number"
-                    className={`input input-bordered ${errors.customWinConditionValue ? 'input-error' : ''}`}
-                    value={values.customWinConditionValue}
-                    onChange={(e) => setValue('customWinConditionValue', e.target.value)}
-                    min="1"
-                  />
-                  {errors.customWinConditionValue && (
-                    <label className="label">
-                      <span className="label-text-alt text-error">{errors.customWinConditionValue}</span>
-                    </label>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Players Section */}
-        <div className="card bg-base-100 shadow-sm">
-          <div className="card-body">
-            <div className="flex items-center justify-between">
-              <h2 className="card-title">Players</h2>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline"
-                onClick={addPlayer}
-                disabled={values.players.length >= 8}
-              >
-                Add Player
-              </button>
-            </div>
-
-            {/* Rivalry Selection */}
-            {rivalries && rivalries.length > 0 && (
-              <div className="form-control mb-4">
-                <label className="label">
-                  <span className="label-text">Select existing rivalry</span>
-                </label>
-                <select 
-                  className="select select-bordered"
-                  value={selectedRivalry}
-                  onChange={(e) => handleRivalrySelect(e.target.value)}
-                >
-                  <option value="">Use players below...</option>
-                  {rivalries.map(rivalry => {
-                    const names = getRivalryPlayerNames(rivalry)
-                    return (
-                      <option key={rivalry.id} value={rivalry.id}>
-                        {names.join(' vs ')}
-                      </option>
-                    )
-                  })}
-                </select>
-                
-                {/* Show rivalry stats if selected */}
-                {selectedRivalry && (() => {
-                  const rivalry = rivalries.find(r => r.id === selectedRivalry)
-                  if (rivalry && Array.isArray(rivalry.game_type_stats) && rivalry.game_type_stats.length > 0) {
-                    return (
-                      <div className="mt-4 p-3 bg-base-200 rounded-lg">
-                        <h4 className="font-semibold mb-2">Stats by Game Type</h4>
-                        <div className="space-y-1 text-sm">
-                          {rivalry.game_type_stats.map(stat => (
-                            <div key={stat.game_type_id} className="flex justify-between">
-                              <span className="font-medium">{stat.game_type_name}:</span>
-                              <span>{stat.games_played} games, {stat.wins}W-{stat.losses}L, Avg: {stat.average_margin ? stat.average_margin.toFixed(1) : 'N/A'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  }
-                  return null
-                })()}
-              </div>
-            )}
-
-            <div className="space-y-3">
-              {values.players.map((playerName, index) => (
-                <div key={index} className="flex gap-2">
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      className="input input-bordered w-full"
-                      placeholder={`Player ${index + 1} name`}
-                      value={playerName}
-                      onChange={(e) => updatePlayerName(index, e.target.value)}
-                    />
-                  </div>
-                  {values.players.length > 2 && (
-                    <button
-                      type="button"
-                      className="btn btn-error btn-sm"
-                      onClick={() => removePlayer(index)}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {errors.players && (
-              <div className="alert alert-error mt-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{errors.players}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <div className="card bg-base-100 shadow-sm">
-          <div className="card-body">
+      <section className="su-sec" aria-labelledby="su-game">
+        <h2 id="su-game" className="pc-label">Game</h2>
+        <div className="su-chips" role="radiogroup" aria-label="Game type">
+          {typesShown.map((g) => (
             <button
-              type="submit"
-              className={`btn btn-primary btn-block ${isLoading ? 'loading' : ''}`}
-              disabled={isLoading || !isFormValid()}
+              key={g.id}
+              type="button"
+              role="radio"
+              aria-checked={g.id === gameType}
+              className={`su-chip ${g.id === gameType ? 'su-chip-on' : ''}`}
+              style={{ '--c': colorOf(0) }}
+              onClick={() => setGameType(g.id)}
             >
-              {isLoading ? 'Creating Game...' : 'Start Game'}
+              {g.name}
             </button>
-          </div>
+          ))}
+          {hiddenCount > 0 && (
+            <button type="button" className="su-chip su-chip-add" onClick={() => setShowAllTypes(true)}>
+              All games…
+            </button>
+          )}
         </div>
-      </form>
-    </div>
+        {selectedType && !useCustom && (
+          <p className="su-hint">
+            {selectedType.is_win_condition ? 'First to' : 'Lose at'} {selectedType.is_win_condition ? selectedType.win_condition : selectedType.loss_condition}
+            {' · '}
+            <button type="button" className="underline" onClick={() => setUseCustom(true)}>Custom score</button>
+          </p>
+        )}
+        {useCustom && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Condition type"
+              className="select select-bordered select-sm"
+              value={customType}
+              onChange={(e) => setCustomType(e.target.value)}
+            >
+              <option value="win">First to reach</option>
+              <option value="lose">First to go below</option>
+            </select>
+            <input
+              aria-label="Points"
+              type="number"
+              min="1"
+              inputMode="numeric"
+              className="input input-bordered input-sm w-24"
+              value={customValue}
+              onChange={(e) => setCustomValue(e.target.value)}
+            />
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUseCustom(false)}>Use default</button>
+          </div>
+        )}
+      </section>
+
+      <section className="su-sec" aria-labelledby="su-players">
+        <h2 id="su-players" className="pc-label">Players · tap to pick</h2>
+        <div className="su-chips">
+          {pool.map((p, i) => {
+            const on = isPicked(p.key)
+            return (
+              <button
+                key={p.key}
+                type="button"
+                aria-pressed={on}
+                className={`su-chip ${on ? 'su-chip-on' : ''}`}
+                style={{ '--c': colorOf(on ? seat(p.key) : i) }}
+                onClick={() => toggle(p)}
+              >
+                <i className="su-dot" aria-hidden="true">{on ? seat(p.key) + 1 : p.name.trim().charAt(0).toUpperCase()}</i>
+                {p.name}
+              </button>
+            )
+          })}
+          {!adding && (
+            <button type="button" className="su-chip su-chip-add" onClick={() => setAdding(true)} disabled={picked.length >= MAX_PLAYERS}>
+              + New player
+            </button>
+          )}
+        </div>
+
+        {adding && (
+          <div className="mt-2">
+            <div className="flex gap-2">
+              <input
+                id="su-new-name"
+                type="text"
+                autoFocus
+                autoCapitalize="words"
+                autoComplete="off"
+                placeholder="Player name"
+                className="input input-bordered flex-1"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTyped() } }}
+              />
+              <button type="button" className="btn btn-primary" onClick={addTyped} disabled={!typed.trim()}>Add</button>
+              <button type="button" className="btn btn-ghost" onClick={() => { setAdding(false); setTyped('') }}>Cancel</button>
+            </div>
+            {match.exact && <p className="su-warn">{match.exact.name} already plays here. Adding picks that player.</p>}
+            {match.near && <p className="su-warn">Did you mean {match.near.name}? Tap that chip to keep their stats together.</p>}
+          </div>
+        )}
+
+        <p className="su-hint">
+          {picked.length < 2 ? 'Pick at least 2 players.' : `${picked.length} players. Seat order is the order you tapped.`}
+        </p>
+      </section>
+
+      {picked.length >= 2 && (
+        <section className="su-sec" aria-labelledby="su-dealer">
+          <h2 id="su-dealer" className="pc-label">First dealer</h2>
+          <div className="su-seg" role="radiogroup" aria-label="First dealer">
+            {[{ key: 'random', name: 'Random' }, ...picked].map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                role="radio"
+                aria-checked={dealerKey === p.key}
+                className={dealerKey === p.key ? 'su-seg-on' : ''}
+                onClick={() => setDealerKey(p.key)}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <button type="submit" className="btn btn-primary btn-block min-h-12" disabled={!canStart}>
+        Start game
+      </button>
+    </form>
   )
 }
 

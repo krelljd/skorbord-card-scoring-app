@@ -161,8 +161,10 @@ const ModernCardApp = () => {
                   sqid={sqid} 
                   gameTypes={gameTypes}
                   players={players}
-                  rivalries={rivalries}
-                  onGameStart={() => setCurrentView('playing')}
+                  onGameStart={async () => {
+                    await refreshData() // new players and the new rivalry show up right away
+                    setCurrentView('playing')
+                  }}
                 />
               )}
               
