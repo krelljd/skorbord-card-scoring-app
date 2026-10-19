@@ -15,6 +15,7 @@ import RoundHistory from './RoundHistory.jsx'
 import PartSheet from './PartSheet.jsx'
 import PlaySheet from './PlaySheet.jsx'
 import GameOver, { RematchSheet } from './GameOver.jsx'
+import LastGameResult from './LastGameResult.jsx'
 import { recapLine, noHandPoints, PART_LABELS, isValidPartValue } from '../../utils/cribbage.js'
 import { computeWinner } from '../../hooks/winnerLogic.js'
 import { seriesLine, rematchDealer } from '../../utils/gameResult.js'
@@ -33,6 +34,7 @@ const GamePlay = ({
   rivalries = [],
   onGameFinalized, 
   onBackToSetup,
+  onNewGame,
   onRematch,
   onOpenStats
 }) => {
@@ -350,23 +352,16 @@ const GamePlay = ({
     )
   }
 
-  // No game state
+  // No active game: reopen the last finished game's result, so it is still reachable
   if (!gameManager.game) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-96 space-y-4">
-        <h2 className="text-2xl font-bold text-base-content">No Active Game</h2>
-        <p className="text-base-content/70 text-center max-w-md">
-          Start a new game from the menu to begin tracking scores.
-        </p>
-        {onBackToSetup && (
-          <button 
-            className="btn btn-primary"
-            onClick={onBackToSetup}
-          >
-            New Game
-          </button>
-        )}
-      </div>
+      <LastGameResult
+        sqid={sqid}
+        rivalries={rivalries}
+        onNewGame={onNewGame || onBackToSetup}
+        onRematch={onRematch}
+        onOpenStats={onOpenStats}
+      />
     )
   }
 

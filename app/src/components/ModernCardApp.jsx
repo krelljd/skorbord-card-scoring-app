@@ -173,6 +173,7 @@ const ModernCardApp = () => {
                   rivalries={rivalries}
                   onGameFinalized={refreshData}
                   onRematch={startRematch}
+                  onNewGame={() => setCurrentView('setup')}
                   onOpenStats={() => setCurrentView('rivalry-stats')}
                 />
               )}
