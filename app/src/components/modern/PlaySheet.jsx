@@ -141,13 +141,15 @@ const PlaySheet = ({ players, dealerId, target = null, storageKey = null, onAdd,
                 role="radio"
                 aria-checked={selected}
                 data-testid={`chip-${p.player_id}`}
-                className={`flex-1 rounded-box border-2 px-1 py-2 text-center ${selected ? 'border-primary bg-primary/20' : 'border-base-300'}`}
+                className={`flex-1 rounded-box border-2 px-1 py-2 text-center ${selected ? 'border-primary bg-primary/20' : p.player_id === advanceTo ? 'ps-next' : 'border-base-300'}`}
                 onClick={() => select(p.player_id)}
               >
                 <span className="block truncate text-xs">{p.player_name}</span>
                 <span className="block text-2xl font-bold tabular-nums">+{playPoints(p)}</span>
                 <span className="block text-xs text-base-content/60">total {total}</span>
-                {p.player_id === advanceTo && <span className="badge badge-ghost badge-sm mt-1">next</span>}
+                {p.player_id === advanceTo && (
+                  <span key={nextKey} className="ps-window" data-testid={`next-${p.player_id}`} style={{ animationDuration: `${COMBO_WINDOW_MS}ms` }} />
+                )}
                 {wins && <span className="badge badge-success badge-sm mt-1">{target}!</span>}
                 {playPoints(p) > PLAY_WARNING && <span className="badge badge-warning badge-sm mt-1">check</span>}
               </button>
