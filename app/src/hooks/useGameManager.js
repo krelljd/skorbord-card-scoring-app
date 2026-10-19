@@ -191,6 +191,7 @@ export function useGameManager(sqid) {
     } catch (error) {
       console.error('Failed to finalize game:', error)
       setError(`Failed to finalize game: ${error.message}`)
+      throw error
     } finally {
       setLoading(false)
     }

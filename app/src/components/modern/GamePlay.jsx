@@ -14,8 +14,10 @@ import NumberPad from './NumberPad.jsx'
 import RoundHistory from './RoundHistory.jsx'
 import PartSheet from './PartSheet.jsx'
 import PlaySheet from './PlaySheet.jsx'
+import GameOver, { RematchSheet } from './GameOver.jsx'
 import { recapLine, noHandPoints, PART_LABELS, isValidPartValue } from '../../utils/cribbage.js'
 import { computeWinner } from '../../hooks/winnerLogic.js'
+import { seriesLine, rematchDealer } from '../../utils/gameResult.js'
 
 const UNDO_WINDOW_MS = 5000
 
@@ -28,8 +30,11 @@ const UNDO_WINDOW_MS = 5000
  */
 const GamePlay = ({ 
   sqid, 
+  rivalries = [],
   onGameFinalized, 
-  onBackToSetup 
+  onBackToSetup,
+  onRematch,
+  onOpenStats
 }) => {
   const gameManager = useGameManager(sqid)
   const gameState = useGameState()
@@ -50,6 +55,9 @@ const GamePlay = ({
   const [totalOnly, setTotalOnly] = useState(false) // plain total pad instead of the part sheet
   const [emptyHandPrompt, setEmptyHandPrompt] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showResult, setShowResult] = useState(false) // game-over screen after finalizing
+  const [rematchOpen, setRematchOpen] = useState(false)
+  const [rematchBusy, setRematchBusy] = useState(false)
   const [winnerPrompt, setWinnerPrompt] = useState(null)
   const [undoable, setUndoable] = useState(null) // { roundNumber } for a few seconds after saving
   const undoTimer = useRef(null)
@@ -304,19 +312,33 @@ const GamePlay = ({
     try {
       await withLoading(async () => {
         await gameManager.finalizeGame()
-        showSuccess('Game finalized successfully!')
         setShowFinalizeConfirm(false)
-        // Navigate to rivalry stats view after finalization
-        if (onGameFinalized) {
-          onGameFinalized()
-        } else if (typeof setCurrentView === 'function') {
-          setCurrentView('rivalry-stats')
-        }
+        // Let the parent refresh rivalry records first, so the series line includes this game
+        await onGameFinalized?.()
+        setShowResult(true)
       })
     } catch (error) {
       showError(`Failed to finalize game: ${parseError(error).message}`)
     }
   }
+
+  // Rematch: same game type, win condition and players; the other player deals first
+  const startRematch = useCallback(async (dealerId) => {
+    const g = gameManager.game
+    setRematchBusy(true)
+    try {
+      await onRematch({
+        game_type_id: g.game_type_id,
+        player_ids: sortedPlayers.map(p => p.player_id),
+        win_condition_type: g.win_condition_type,
+        win_condition_value: g.win_condition_value,
+        ...(dealerId ? { dealer_id: dealerId } : {})
+      })
+    } catch (error) {
+      showError(`Could not start the rematch: ${parseError(error).message}`)
+      setRematchBusy(false)
+    }
+  }, [gameManager.game, sortedPlayers, onRematch, showError])
 
   // Loading state
   if (gameManager.loading || isLoading) {
@@ -350,6 +372,12 @@ const GamePlay = ({
 
   const { game } = gameManager
   const isFinalized = game.finalized
+  const resultPlayers = sortedPlayers.map(p => ({ player_id: p.player_id, player_name: p.player_name, score: p.score || 0 }))
+  const resultWinnerId = gameState.winner?.player_id || game.winner_id || null
+  const rivalry = rivalries.find(r => r.id === game.rivalry_id)
+  // Last game's first dealer is round 1's dealer
+  const firstRound = (roundState?.rounds || []).filter(r => !r.is_backfill).sort((a, b) => a.round_number - b.round_number)[0]
+  const rematchDefaultDealer = rematchDealer(resultPlayers.map(p => p.player_id), firstRound?.dealer_id || game.dealer_id)
 
   return (
     <div className="space-y-3">
@@ -508,9 +536,42 @@ const GamePlay = ({
         </div>
       )}
       {isFinalized && sortedPlayers.length > 0 && (
-        <button className="btn btn-outline btn-block" onClick={() => setShowHistory(true)}>
-          Score history
-        </button>
+        <div className="flex flex-col gap-2">
+          {resultWinnerId && onRematch && (
+            <button className="btn btn-primary btn-block min-h-12" onClick={() => setShowResult(true)}>
+              Game result and rematch
+            </button>
+          )}
+          <button className="btn btn-outline btn-block" onClick={() => setShowHistory(true)}>
+            Score history
+          </button>
+        </div>
+      )}
+
+      {isFinalized && showResult && resultWinnerId && !showHistory && (
+        <GameOver
+          game={game}
+          players={resultPlayers}
+          winnerId={resultWinnerId}
+          series={seriesLine(rivalry?.players)}
+          showSkunk={tracksParts}
+          onRematch={() => setRematchOpen(true)}
+          onStats={() => onOpenStats?.()}
+          onHistory={() => setShowHistory(true)}
+          onClose={() => setShowResult(false)}
+        />
+      )}
+
+      {rematchOpen && (
+        <RematchSheet
+          game={game}
+          players={resultPlayers}
+          showDealer={tracksParts}
+          defaultDealerId={rematchDefaultDealer}
+          busy={rematchBusy}
+          onStart={startRematch}
+          onCancel={() => setRematchOpen(false)}
+        />
       )}
 
       {undoable && (

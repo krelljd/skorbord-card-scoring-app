@@ -114,7 +114,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', validateCreateGame, async (req, res, next) => {
   try {
     const { sqid } = req.params;
-    const { game_type_id, player_ids, player_names, win_condition_type, win_condition_value } = req.body;
+    const { game_type_id, player_ids, player_names, win_condition_type, win_condition_value, dealer_id: requestedDealerId } = req.body;
 
     // Validate game type exists
     const gameType = await db.get(
@@ -198,9 +198,12 @@ router.post('/', validateCreateGame, async (req, res, next) => {
         finalWinConditionValue = gameType.is_win_condition ? gameType.win_condition : gameType.loss_condition;
       }
 
-      // Select a random dealer from the players
-      const randomDealerIndex = Math.floor(Math.random() * finalPlayerIds.length);
-      const initialDealerId = finalPlayerIds[randomDealerIndex];
+      // First dealer: the one asked for (a rematch alternates it), else random
+      if (requestedDealerId !== undefined && requestedDealerId !== null && !finalPlayerIds.includes(requestedDealerId)) {
+        throw new ValidationError('dealer_id must be one of the players');
+      }
+      const initialDealerId = requestedDealerId
+        || finalPlayerIds[Math.floor(Math.random() * finalPlayerIds.length)];
 
       const gameData = {
         id: gameId,

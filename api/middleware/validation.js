@@ -74,6 +74,7 @@ export const validateCreateGame = [
       }
       return true;
     }),
+  body('dealer_id').optional({ nullable: true }).isString(),
   body().custom((body) => {
     // Accept either player_ids (array of IDs) or player_names (array of strings)
     if (!Array.isArray(body.player_ids) && !Array.isArray(body.player_names)) {
