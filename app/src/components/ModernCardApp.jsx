@@ -5,6 +5,7 @@ import { GameStateProvider } from '../contexts/GameStateContext.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
 import { ToastProvider } from './Toast.jsx'
 import { useAppData } from '../hooks/useAppData.js'
+import gameAPI from '../services/gameAPI.js'
 
 // Modern components
 import GameSetup from './modern/GameSetup.jsx'
@@ -35,6 +36,7 @@ const ModernCardApp = () => {
     setGameTypes, 
     setPlayers, 
     setRivalries,
+    reload,
     loading: dataLoading, 
     error: dataError 
   } = useAppData(sqid)
@@ -43,6 +45,7 @@ const ModernCardApp = () => {
   const [currentView, setCurrentView] = useState('setup') // setup, playing, rivalry-stats, admin
   const [adminTab, setAdminTab] = useState('game-types')
   const [loading, setLoading] = useState(true)
+  const [gameKey, setGameKey] = useState(0) // new key remounts GamePlay on the new game after a rematch
 
   // Initialize app when connection is ready and data is loaded
   useEffect(() => {
@@ -72,6 +75,16 @@ const ModernCardApp = () => {
 
     initializeApp()
   }, [isConnected, sqid, dataLoading])
+
+  // Refresh rivalry records in place (the series line on the game-over screen reads them)
+  const refreshData = () => reload({ silent: true })
+
+  // Start the next game with the same setup, then show it
+  const startRematch = async (config) => {
+    await gameAPI.createGame(sqid, config)
+    await refreshData()
+    setGameKey((k) => k + 1)
+  }
 
   // Render loading state
   if (loading || dataLoading) {
@@ -154,7 +167,14 @@ const ModernCardApp = () => {
               )}
               
               {currentView === 'playing' && (
-                <GamePlay sqid={sqid} />
+                <GamePlay
+                  key={gameKey}
+                  sqid={sqid}
+                  rivalries={rivalries}
+                  onGameFinalized={refreshData}
+                  onRematch={startRematch}
+                  onOpenStats={() => setCurrentView('rivalry-stats')}
+                />
               )}
               
               {currentView === 'rivalry-stats' && (

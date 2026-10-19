@@ -12,13 +12,14 @@ export function useAppData(sqid) {
   const [error, setError] = useState(null)
 
   // Load initial data
-  const loadAppData = useCallback(async () => {
+  // silent: refresh in place without the loading state, so the screen is not replaced mid-game
+  const loadAppData = useCallback(async ({ silent = false } = {}) => {
     if (!sqid) {
       console.warn('No sqid provided to useAppData')
       return
     }
 
-    setLoading(true)
+    if (!silent) setLoading(true)
     setError(null)
 
     try {
@@ -66,10 +67,10 @@ export function useAppData(sqid) {
 
     } catch (err) {
       console.error('Failed to load app data:', err)
-      setError(err.message)
+      if (!silent) setError(err.message)
       // Don't use toast here - let the parent component handle error display
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [sqid])
 
