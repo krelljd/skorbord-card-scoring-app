@@ -13,7 +13,7 @@ import ReorderablePlayerCard from './ReorderablePlayerCard.jsx'
 import NumberPad from './NumberPad.jsx'
 import RoundHistory from './RoundHistory.jsx'
 import PartSheet from './PartSheet.jsx'
-import PlaySheet from './PlaySheet.jsx'
+import PlaySheet, { playLogKey, clearPlayLog } from './PlaySheet.jsx'
 import GameOver, { RematchSheet } from './GameOver.jsx'
 import LastGameResult from './LastGameResult.jsx'
 import { recapLine, noHandPoints, PART_LABELS, isValidPartValue } from '../../utils/cribbage.js'
@@ -177,14 +177,16 @@ const GamePlay = ({
   const saveRound = useCallback(async (winnerId = null) => {
     setWinnerPrompt(null)
     try {
+      const savedKey = roundState ? playLogKey(roundState.game.id, roundState.open_round) : null
       const state = await gameManager.nextRound({ winnerId })
+      if (savedKey) clearPlayLog(savedKey)
       clearTimeout(undoTimer.current)
       setUndoable({ roundNumber: state.open_round - 1 })
       undoTimer.current = setTimeout(() => setUndoable(null), UNDO_WINDOW_MS)
     } catch (error) {
       showError(`Failed to save round: ${parseError(error).message}`)
     }
-  }, [gameManager, showError])
+  }, [gameManager, roundState, showError])
 
   const handleNextRound = useCallback((skipEmptyHandCheck = false) => {
     if (tracksParts && skipEmptyHandCheck !== true && noHandPoints(roundState.players)) {
@@ -604,6 +606,7 @@ const GamePlay = ({
         <PlaySheet
           players={roundState.players}
           dealerId={roundState.game.dealer_id}
+          storageKey={playLogKey(roundState.game.id, roundState.open_round)}
           target={roundState.game.win_condition_type === 'win' ? roundState.game.win_condition_value : null}
           onAdd={(playerId, delta) => handleScoreUpdate(playerId, delta)}
           onClose={() => setShowPlay(false)}
