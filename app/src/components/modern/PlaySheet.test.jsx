@@ -27,7 +27,7 @@ describe('PlaySheet', () => {
     const onAdd = setup()
     expect(screen.getByTestId('chip-b')).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(screen.getByText('15'))
-    expect(screen.getByTestId('chip-c')).toHaveTextContent('next')
+    expect(screen.getByTestId('next-c')).toBeInTheDocument()
     wait(COMBO_WINDOW_MS - 500)
     fireEvent.click(screen.getByText('Pair'))
     wait(COMBO_WINDOW_MS - 500)

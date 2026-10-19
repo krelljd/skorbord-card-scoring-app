@@ -867,6 +867,17 @@
   .rh-run i { font-style: normal; font-size: 0.625rem; font-variant-numeric: tabular-nums; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
 }
 
+/* Play sheet: the player who is next gets a dashed orange edge and a bar that drains over the combo window */
+@layer components {
+  .ps-next { position: relative; border-style: dashed; border-color: #f59e2b; background: color-mix(in oklab, #f59e2b 14%, transparent); }
+  .ps-window {
+    position: absolute; left: 0.6rem; right: 0.6rem; bottom: 0.3rem; height: 3px; border-radius: 2px;
+    background: #f59e2b; transform-origin: left; animation: ps-drain linear forwards;
+  }
+  @keyframes ps-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @media (prefers-reduced-motion: reduce) { .ps-window { animation: none; transform: scaleX(0.6); } }
+}
+
 /* Game over: floods the screen in the winner's color */
 @layer components {
   .go-flood {
