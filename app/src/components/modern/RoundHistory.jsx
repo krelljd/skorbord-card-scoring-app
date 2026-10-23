@@ -3,6 +3,8 @@ import NumberPad from './NumberPad.jsx'
 import PartSheet from './PartSheet.jsx'
 import CountUp from './CountUp.jsx'
 import RoundReplay from './RoundReplay.jsx'
+import LeadBand from './LeadBand.jsx'
+import { gameStory } from '../../utils/gameStory.js'
 import { polylineLength } from '../../utils/motion.js'
 import { PARTS, PART_LABELS } from '../../utils/cribbage.js'
 
@@ -128,6 +130,8 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title 
     return { players, rows, totals, averages, partAverages }
   }, [roundState])
 
+  const story = useMemo(() => gameStory(roundState), [roundState])
+
   const canReplay = rows.filter((r) => !r.round.is_backfill).length >= 2
   const leader = totals.length > 1 && Math.max(...totals) > 0 ? totals.indexOf(Math.max(...totals)) : -1
   const nameOf = (id) => players.find((p) => p.player_id === id)?.player_name
@@ -211,6 +215,8 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title 
                 ))}
                 {tracksParts && <span className="rh-note">Crib average counts only rounds that player dealt.</span>}
               </div>
+
+              <LeadBand story={story} players={players} colors={players.map((p, i) => playerColor(colorIndexOf(colorOrder, p.player_id, i)))} />
 
               <TotalsChart players={players} rows={rows} target={target} colorOrder={colorOrder} />
               </>

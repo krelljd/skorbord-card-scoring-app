@@ -552,6 +552,7 @@ const GamePlay = ({
           winnerId={resultWinnerId}
           series={seriesLine(rivalry?.players)}
           showSkunk={tracksParts}
+          roundState={roundState}
           onRematch={() => setRematchOpen(true)}
           onStats={() => onOpenStats?.()}
           onHistory={() => setShowHistory(true)}
