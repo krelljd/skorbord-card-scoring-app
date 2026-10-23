@@ -48,7 +48,7 @@ export const PregameTalkingPoints = ({ sqid, rivalries = [], picked = [], gameTy
   const details = useRivalryDetails(sqid, rivalry?.id)
   if (!rivalry || !details) return null
   const facts = talkingPoints({ context: 'pregame', players: details.players || [], timeline: details.timeline || [], gameTypeId, max: 2 })
-  const history = rivalryFacts({ players: details.players || [], timeline: details.timeline || [], roundStats: details.round_stats, gameTypeId })
+  const history = rivalryFacts({ players: details.players || [], timeline: details.timeline || [], roundStats: details.round_stats, roundGames: details.round_games, gameTypeId })
   if (!facts.length && !history) return null
 
   return (

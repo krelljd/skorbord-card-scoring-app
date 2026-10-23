@@ -62,6 +62,42 @@ describe('pickLine', () => {
   })
 })
 
+describe('round-based lines', () => {
+  const timeline = [1, 2, 3, 4, 5].map((n) => game(n, n % 2 ? 'a' : 'b', 9))
+  const rg = (n, winner, extra = {}) => ({ id: `g${n}`, winner_id: winner, rounds: 8, lead_changes: 1, comeback: 0, blown_lead: 0, blown_by: null, first_dealer_id: 'a', ...extra })
+  const facts = rivalryFacts({
+    players, timeline, now,
+    roundGames: [rg(1, 'a', { rounds: 6 }), rg(2, 'b', { comeback: 31, blown_lead: 31, blown_by: 'a', lead_changes: 5, rounds: 19 }), rg(3, 'a'), rg(4, 'a'), rg(5, 'a')]
+  })
+  const ids = (level, context) => {
+    const seen = new Set()
+    for (let i = 0; i < 300; i++) {
+      const line = pickLine({ level, context, facts, players, rand: () => i / 300 })
+      if (line) seen.add(line.id)
+    }
+    return seen
+  }
+
+  it('turns round facts into lines with names and numbers', () => {
+    const all = new Set()
+    const texts = []
+    for (let i = 0; i < 300; i++) {
+      const line = pickLine({ level: 'spicy', context: 'history', facts, players, rand: () => i / 300 })
+      if (line && !all.has(line.id)) { all.add(line.id); texts.push(line.text) }
+    }
+    expect(texts.join('\n')).toMatch(/Jess once came back from 31 down/)
+    expect(texts.join('\n')).toMatch(/Alex has blown a 31-point lead/)
+    expect(texts.join('\n')).toMatch(/longest game ran 19 rounds/)
+  })
+
+  it('shows dealer lines only before a game, and the spicy ones only on Spicy', () => {
+    expect(ids('spicy', 'history').has('dealer-1')).toBe(false)
+    expect(ids('spicy', 'pregame').has('dealer-1')).toBe(true)
+    expect(ids('mild', 'pregame').has('dealer-2')).toBe(false)
+    expect(ids('mild', 'history').has('blown-1')).toBe(false)
+  })
+})
+
 describe('other lines', () => {
   it('has first-game lines unless Off', () => {
     expect(pickEmptyLine({ level: 'off' })).toBeNull()
