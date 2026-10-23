@@ -76,4 +76,23 @@ describe('RoundHistory', () => {
     expect(cards[2]).toHaveTextContent('Earlier rounds')
     expect(cards[2]).not.toHaveTextContent('avg')
   })
+
+  it('offers Replay once there are two real rounds, and steps with the slider', () => {
+    render(<RoundHistory roundState={roundState} onEdit={() => {}} onClose={() => {}} canEdit />)
+    fireEvent.click(screen.getByRole('button', { name: 'Replay' }))
+    expect(screen.getByTestId('round-replay')).toBeInTheDocument()
+    const [ann] = screen.getAllByTestId('replay-player')
+    expect(ann).toHaveTextContent('90')
+    fireEvent.change(screen.getByLabelText('Round'), { target: { value: '3' } })
+    expect(screen.getAllByTestId('replay-player')[0]).toHaveTextContent('106')
+    expect(screen.getByRole('button', { name: 'Again' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop replay' }))
+    expect(screen.queryByTestId('round-replay')).toBeNull()
+  })
+
+  it('hides Replay when there is only one real round', () => {
+    const one = { players: roundState.players, rounds: [round(1, { a: 5, b: 3 })] }
+    render(<RoundHistory roundState={one} onEdit={() => {}} onClose={() => {}} canEdit />)
+    expect(screen.queryByRole('button', { name: 'Replay' })).toBeNull()
+  })
 })

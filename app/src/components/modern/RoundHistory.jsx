@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import NumberPad from './NumberPad.jsx'
 import PartSheet from './PartSheet.jsx'
+import CountUp from './CountUp.jsx'
+import RoundReplay from './RoundReplay.jsx'
+import { polylineLength } from '../../utils/motion.js'
 import { PARTS, PART_LABELS } from '../../utils/cribbage.js'
 
 /**
@@ -17,10 +20,9 @@ const colorIndexOf = (colorOrder, playerId, i) => {
   return k >= 0 ? k : i
 }
 const round1 = (n) => Math.round(n * 10) / 10
-const signed = (n) => (n > 0 ? `+${n}` : `${n}`)
 
 /** Running totals after each saved round, one line per player, with the goal line when the game has one. */
-const TotalsChart = ({ players, rows, target, colorOrder }) => {
+const TotalsChart = ({ players, rows, target, colorOrder, upTo = rows.length, animate = true }) => {
   if (rows.length < 2) return null
   const W = 340
   const H = 150
@@ -33,7 +35,8 @@ const TotalsChart = ({ players, rows, target, colorOrder }) => {
   const x = (i) => padL + (i * (W - padL - padR)) / (rows.length - 1)
   const y = (v) => H - padB - (Math.max(0, v) * (H - padT - padB)) / max
   const ticks = [0, Math.round(max / 3), Math.round((2 * max) / 3), max]
-  const last = rows[rows.length - 1].cells
+  const shown = Math.max(1, Math.min(upTo, rows.length))
+  const last = rows[shown - 1].cells
   // Nudge end labels apart when the two leaders finish close together
   const labelY = (pi) => {
     const mine = y(last[pi].running)
@@ -54,6 +57,7 @@ const TotalsChart = ({ players, rows, target, colorOrder }) => {
       ))}
       {players.map((p, pi) => {
         const color = playerColor(colorIndexOf(colorOrder, p.player_id, pi))
+        const line = rows.slice(0, shown).map((r, i) => [x(i), y(r.cells[pi].running)])
         return (
         <g key={p.player_id}>
           <polyline
@@ -62,10 +66,12 @@ const TotalsChart = ({ players, rows, target, colorOrder }) => {
             strokeWidth="2.5"
             strokeLinejoin="round"
             strokeLinecap="round"
-            points={rows.map((r, i) => `${x(i)},${y(r.cells[pi].running)}`).join(' ')}
+            className={animate ? 'rh-draw' : undefined}
+            style={animate ? { '--len': polylineLength(line) } : undefined}
+            points={line.map((pt) => pt.join(',')).join(' ')}
           />
-          <circle cx={x(rows.length - 1)} cy={y(last[pi].running)} r="4" fill={color} />
-          <text x={x(rows.length - 1) + 7} y={labelY(pi)} fontSize="11" fontWeight="800" fill={color}>{last[pi].running}</text>
+          <circle className={animate ? 'rh-pop' : undefined} cx={x(shown - 1)} cy={y(last[pi].running)} r="4" fill={color} />
+          <text className={animate ? 'rh-pop' : undefined} x={x(shown - 1) + 7} y={labelY(pi)} fontSize="11" fontWeight="800" fill={color}>{last[pi].running}</text>
         </g>
         )
       })}
@@ -75,6 +81,7 @@ const TotalsChart = ({ players, rows, target, colorOrder }) => {
 
 const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title = 'Score history', subtitle }) => {
   const [editing, setEditing] = useState(null)
+  const [replaying, setReplaying] = useState(false)
   const tracksParts = Array.isArray(roundState?.game?.score_parts) && roundState.game.score_parts.length > 0
   const target = roundState?.game?.win_condition_type === 'win' ? Number(roundState.game.win_condition_value) || null : null
 
@@ -121,6 +128,7 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title 
     return { players, rows, totals, averages, partAverages }
   }, [roundState])
 
+  const canReplay = rows.filter((r) => !r.round.is_backfill).length >= 2
   const leader = totals.length > 1 && Math.max(...totals) > 0 ? totals.indexOf(Math.max(...totals)) : -1
   const nameOf = (id) => players.find((p) => p.player_id === id)?.player_name
   // Avg/rnd first, then one tile per part that anyone has data for
@@ -151,6 +159,11 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title 
             {subtitle && <div className="pc-label truncate">{subtitle}</div>}
           </div>
           <div className="flex items-center gap-2">
+            {canReplay && (
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setReplaying((on) => !on)} aria-pressed={replaying}>
+                {replaying ? 'Stop replay' : 'Replay'}
+              </button>
+            )}
             <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>
               Close
             </button>
@@ -164,6 +177,11 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title 
             </p>
           ) : (
             <div className="flex flex-col gap-2">
+              {replaying && canReplay ? (
+                <RoundReplay players={players} rows={rows} target={target} colors={players.map((p, i) => playerColor(colorIndexOf(colorOrder, p.player_id, i)))} onDone={() => setReplaying(false)}
+                  renderChart={(upTo) => <TotalsChart players={players} rows={rows} target={target} colorOrder={colorOrder} upTo={upTo} animate={false} />} />
+              ) : (
+              <>
               <div className="rh-summary">
                 <span className="pc-label">{subtitle ? 'Final' : 'Game so far'} · {rows.filter((r) => !r.round.is_backfill).length} rounds</span>
                 {players.map((p, i) => (
@@ -195,10 +213,12 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title 
               </div>
 
               <TotalsChart players={players} rows={rows} target={target} colorOrder={colorOrder} />
+              </>
+              )}
 
               <span className="pc-label mt-1">Rounds · newest first{canEdit ? ' · tap a score to correct' : ''}</span>
-              {[...rows].reverse().map(({ round, cells }) => (
-                <div key={round.round_number} className="rh-round" data-testid="round-card">
+              {[...rows].reverse().map(({ round, cells }, idx) => (
+                <div key={round.round_number} className="rh-round rh-in" style={{ animationDelay: `${Math.min(idx, 8) * 60}ms` }} data-testid="round-card">
                   <div className="flex items-center">
                     <span className="pc-label flex-1">
                       {round.is_backfill ? 'Earlier rounds' : `Round ${round.round_number}${nameOf(round.dealer_id) ? ` · ${nameOf(round.dealer_id)} dealt` : ''}`}
@@ -225,11 +245,11 @@ const RoundHistory = ({ roundState, onEdit, onClose, canEdit, colorOrder, title 
                         </span>
                       )}
                       <span className="rh-chip">
-                        {signed(cell.points)}
+                        <CountUp value={cell.points} prefix={cell.points > 0 ? '+' : ''} delay={Math.min(idx, 8) * 60 + 250} />
                         {cell.edited && <span className="text-warning" title="Corrected"> •</span>}
                       </span>
                       <span className="rh-run">
-                        <b>{cell.running}</b>
+                        <b><CountUp value={cell.running} delay={Math.min(idx, 8) * 60 + 250} /></b>
                         {cell.avg !== null && <i>avg {cell.avg}</i>}
                       </span>
                     </button>
