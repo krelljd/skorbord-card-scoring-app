@@ -929,3 +929,21 @@
   .su-again-title { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
   .su-again-go { background: var(--pc-fg); color: var(--c); border-radius: 0.625rem; min-height: 2.75rem; padding: 0 1rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
 }
+
+/* Animated history: totals lines draw in, round cards cascade, replay bars race */
+@layer components {
+  .rh-draw { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); animation: rh-draw 1.4s cubic-bezier(.4, 0, .2, 1) forwards; }
+  .rh-pop { opacity: 0; animation: rh-fade .4s 1.4s forwards; }
+  .rh-in { opacity: 0; transform: translateY(12px); animation: rh-in .45s cubic-bezier(.3, .8, .3, 1) forwards; }
+  .rh-race { transition: width .7s cubic-bezier(.3, .7, .2, 1); }
+  .rh-gain { font: 700 0.75rem ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 1em; animation: rh-gain .8s ease-out; }
+}
+@keyframes rh-draw { to { stroke-dashoffset: 0; } }
+@keyframes rh-fade { to { opacity: 1; } }
+@keyframes rh-in { to { opacity: 1; transform: none; } }
+@keyframes rh-gain { 0% { opacity: 0; transform: translateY(6px); } 30% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .rh-draw { animation: none; stroke-dashoffset: 0; }
+  .rh-pop, .rh-in, .rh-gain { animation: none; opacity: 1; transform: none; }
+  .rh-race { transition: none; }
+}
