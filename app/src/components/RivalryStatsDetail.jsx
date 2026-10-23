@@ -214,7 +214,7 @@ export default function RivalryStatsDetail({ sqid, details, gameTypes, players, 
   const playerStats = details.player_stats || {}
   const roundStats = details.round_stats || {}
   const compact = players.length > 2
-  const historyFacts = rivalryFacts({ players, timeline: details.timeline || [], roundStats })
+  const historyFacts = rivalryFacts({ players, timeline: details.timeline || [], roundStats, roundGames: details.round_games })
 
   const statsFor = (player) => {
     const byType = playerStats[player.id] || playerStats[player.name] || {}

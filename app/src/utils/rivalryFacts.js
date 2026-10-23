@@ -5,6 +5,8 @@ import { currentStreak } from './seriesStats.js'
 
 export const MIN_GAMES = 3 // no fact until this many finished games are behind it
 export const CLOSE_MARGIN = 5 // "close game" = decided by this many points or fewer
+export const COMEBACK_MIN = 15 // a comeback or blown lead needs at least this many points
+export const WILD_MIN = 3 // lead changes in one game before it counts as wild
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const dayOf = (iso) => {
@@ -35,11 +37,12 @@ export function winCounts(games) {
  * @param {Array<{id, name}>} args.players
  * @param {Array} args.timeline - the whole finished-game history, oldest first
  * @param {Record<string, Record<string, {skunks?: {skunks_received?: number, double_skunks_received?: number}}>>} [args.roundStats] - playerId -> gameTypeId -> stats
+ * @param {Array} [args.roundGames] - per-game round summaries from the API (round_games): rounds, lead_changes, comeback, blown_lead, first_dealer_id
  * @param {string|null} [args.gameTypeId] - the game type picked in setup, if any
  * @param {number} [args.now] - ms since epoch, for "days since"
  * @returns {object|null} null while fewer than MIN_GAMES games back the history
  */
-export function rivalryFacts({ players = [], timeline = [], roundStats = {}, gameTypeId = null, now = Date.now() }) {
+export function rivalryFacts({ players = [], timeline = [], roundStats = {}, roundGames = [], gameTypeId = null, now = Date.now() }) {
   const name = Object.fromEntries(players.map((p) => [p.id, p.name]))
   const games = timeline.filter((g) => name[g.winner_id])
   if (games.length < MIN_GAMES || players.length < 2) return null
@@ -150,6 +153,40 @@ export function rivalryFacts({ players = [], timeline = [], roundStats = {}, gam
     if (total > 0 && (!skunked || total > skunked.count)) skunked = { playerId: p.id, count: total }
   }
   if (skunked) facts.skunked = skunked
+
+  // Round-based facts, from games with saved rounds (new games only). Each needs 3+ such games behind it.
+  const rg = roundGames.filter((g) => name[g.winner_id])
+  if (rg.length >= MIN_GAMES) {
+    const most = (key) => rg.reduce((a, g) => (g[key] > a[key] ? g : a))
+    const back = most('comeback')
+    if (back.comeback >= COMEBACK_MIN) facts.comebackRecord = { playerId: back.winner_id, points: back.comeback }
+    const blown = most('blown_lead')
+    if (blown.blown_lead >= COMEBACK_MIN && name[blown.blown_by]) facts.blownLead = { playerId: blown.blown_by, points: blown.blown_lead }
+    const wild = most('lead_changes')
+    if (wild.lead_changes >= WILD_MIN) facts.wildGame = { changes: wild.lead_changes }
+    const longest = most('rounds')
+    const shortest = rg.reduce((a, g) => (g.rounds < a.rounds ? g : a))
+    if (longest.rounds > shortest.rounds) {
+      facts.longestGame = { rounds: longest.rounds }
+      facts.shortestGame = { rounds: shortest.rounds }
+    }
+    // First dealer: the share of games the first dealer won, and the player who wins most from the first deal
+    const dealt = rg.filter((g) => name[g.first_dealer_id])
+    if (dealt.length >= 5) {
+      const won = dealt.filter((g) => g.first_dealer_id === g.winner_id).length
+      const pct = Math.round((won / dealt.length) * 100)
+      if (pct !== 50) facts.firstDealer = { pct, n: dealt.length }
+      const byPlayer = players
+        .map((p) => {
+          const mine = dealt.filter((g) => g.first_dealer_id === p.id)
+          const w = mine.filter((g) => g.winner_id === p.id).length
+          return { playerId: p.id, n: mine.length, pct: mine.length ? Math.round((w / mine.length) * 100) : 0 }
+        })
+        .filter((d) => d.n >= MIN_GAMES && d.pct >= 60)
+        .sort((a, b) => b.pct - a.pct)
+      if (byPlayer.length) facts.dealerWinner = byPlayer[0]
+    }
+  }
 
   // Milestone: the next game is a round number
   if (facts.nextGame % 5 === 0) facts.milestone = facts.nextGame

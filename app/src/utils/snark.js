@@ -59,6 +59,15 @@ const LINES = [
   { id: 'skunk-1', tone: 'mild', fn: (f, { name }) => f.skunked && `${name(f.skunked.playerId)} has been skunked ${plural(f.skunked.count, 'time')}. It builds character.` },
   { id: 'skunk-2', tone: 'spicy', fn: (f, { name }) => f.skunked && `${name(f.skunked.playerId)} has been skunked ${plural(f.skunked.count, 'time')}. The smell lingers.` },
 
+  // Rounds (new games only)
+  { id: 'comeback-1', tone: 'mild', fn: (f, { name }) => f.comebackRecord && `${name(f.comebackRecord.playerId)} once came back from ${f.comebackRecord.points} down. Never count them out.` },
+  { id: 'blown-1', tone: 'spicy', fn: (f, { name }) => f.blownLead && `${name(f.blownLead.playerId)} has blown a ${f.blownLead.points}-point lead. It's a gift, really.` },
+  { id: 'wild-1', tone: 'mild', fn: (f) => f.wildGame && `The wildest game had ${f.wildGame.changes} lead changes. Nobody could hold it.` },
+  { id: 'longest-1', tone: 'mild', fn: (f) => f.longestGame && `The longest game ran ${f.longestGame.rounds} rounds. Nobody wanted to quit.` },
+  { id: 'shortest-1', tone: 'mild', fn: (f) => f.shortestGame && `The shortest game took ${f.shortestGame.rounds} rounds. Somebody was in a hurry.` },
+  { id: 'dealer-1', tone: 'mild', ctx: ['pregame'], fn: (f) => f.firstDealer && `The first dealer wins ${f.firstDealer.pct}% of the time. Choose wisely.` },
+  { id: 'dealer-2', tone: 'spicy', ctx: ['pregame'], fn: (f, { name }) => f.dealerWinner && `${name(f.dealerWinner.playerId)} wins ${f.dealerWinner.pct}% as first dealer and acts like it's skill.` },
+
   // Milestones
   { id: 'milestone-1', tone: 'mild', fn: (f) => f.milestone && `Game ${f.milestone} is coming up. A round number deserves a good fight.` },
   { id: 'milestone-2', tone: 'mild', fn: (f) => f.count >= 5 && `Game ${f.nextGame} together. You two should get a room.` }

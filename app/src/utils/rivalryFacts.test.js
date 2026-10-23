@@ -72,6 +72,45 @@ describe('rivalryFacts', () => {
   })
 })
 
+describe('round-based facts', () => {
+  const timeline = [1, 2, 3, 4, 5].map((n) => game(n, n % 2 ? 'a' : 'b', 9))
+  const rg = (n, winner, extra = {}) => ({ id: `g${n}`, winner_id: winner, rounds: 8, lead_changes: 1, comeback: 0, blown_lead: 0, blown_by: null, first_dealer_id: 'a', ...extra })
+
+  it('says nothing from round data until three games have it', () => {
+    const f = rivalryFacts({ players, timeline, roundGames: [rg(1, 'a', { comeback: 40 }), rg(2, 'b')], now })
+    expect(f.comebackRecord).toBeUndefined()
+    expect(f.longestGame).toBeUndefined()
+  })
+
+  it('finds the biggest comeback, blown lead, wildest game and game lengths', () => {
+    const roundGames = [
+      rg(1, 'a', { rounds: 6 }),
+      rg(2, 'b', { comeback: 31, blown_lead: 31, blown_by: 'a', lead_changes: 5, rounds: 19 }),
+      rg(3, 'a', { comeback: 10 })
+    ]
+    const f = rivalryFacts({ players, timeline, roundGames, now })
+    expect(f.comebackRecord).toEqual({ playerId: 'b', points: 31 })
+    expect(f.blownLead).toEqual({ playerId: 'a', points: 31 })
+    expect(f.wildGame).toEqual({ changes: 5 })
+    expect(f.longestGame).toEqual({ rounds: 19 })
+    expect(f.shortestGame).toEqual({ rounds: 6 })
+  })
+
+  it('ignores small comebacks and games all the same length', () => {
+    const f = rivalryFacts({ players, timeline, roundGames: [rg(1, 'a', { comeback: 5 }), rg(2, 'b'), rg(3, 'a')], now })
+    expect(f.comebackRecord).toBeUndefined()
+    expect(f.longestGame).toBeUndefined()
+  })
+
+  it('reads the first-dealer win rate once five games have a dealer', () => {
+    const roundGames = [1, 2, 3, 4, 5].map((n) => rg(n, n <= 4 ? 'a' : 'b'))
+    const f = rivalryFacts({ players, timeline, roundGames, now })
+    expect(f.firstDealer).toEqual({ pct: 80, n: 5 })
+    expect(f.dealerWinner).toMatchObject({ playerId: 'a', pct: 80 })
+    expect(rivalryFacts({ players, timeline, roundGames: roundGames.slice(0, 4), now }).firstDealer).toBeUndefined()
+  })
+})
+
 describe('shortDate', () => {
   it('is empty without a date', () => {
     expect(shortDate(null)).toBe('')
