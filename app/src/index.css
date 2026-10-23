@@ -960,6 +960,20 @@
   .lb-tie { border: 1px dashed currentColor; }
 }
 @keyframes lb-in { to { opacity: 1; } }
+
+/* Talking points: one fact on Game Over, up to two before a game */
+@layer components {
+  .go-tp { margin-top: 0.75rem; padding: 0.625rem 0.75rem; border-radius: 0.75rem; background: color-mix(in oklab, var(--pc-fg) 14%, transparent); min-height: 4.5rem; display: flex; flex-direction: column; gap: 0.25rem; }
+  .go-tp-label { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
+  .go-tp-text { font-size: 1.05rem; font-weight: 600; line-height: 1.3; animation: go-tp-in .3s ease-out; }
+  .go-tp-next { align-self: flex-start; min-height: 2.75rem; padding: 0 0.25rem; font-size: 0.8rem; font-weight: 700; text-decoration: underline; }
+  .su-tp { display: flex; gap: 0.625rem; align-items: baseline; padding: 0.5rem 0.75rem; border-radius: 0.75rem; background: var(--color-base-200); border: 1px solid var(--color-base-300); }
+  .su-tp + .su-tp { margin-top: 0.5rem; }
+  .su-tp-label { flex: none; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-primary); }
+  .su-tp-text { font-size: 0.9375rem; min-width: 0; }
+}
+@keyframes go-tp-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .go-tp-text { animation: none; } }
 @keyframes rh-draw { to { stroke-dashoffset: 0; } }
 @keyframes rh-fade { to { opacity: 1; } }
 @keyframes rh-in { to { opacity: 1; transform: none; } }

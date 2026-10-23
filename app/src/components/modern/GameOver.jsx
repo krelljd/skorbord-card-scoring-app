@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { gameResult, skunkLabel } from '../../utils/gameResult.js'
 import { gameStory, storyChips } from '../../utils/gameStory.js'
 import LeadBand from './LeadBand.jsx'
+import { GameOverTalkingPoint } from './TalkingPoint.jsx'
 
 /**
  * Full-screen result after a game is finalized. The screen floods in the winner's player color,
@@ -10,8 +11,9 @@ import LeadBand from './LeadBand.jsx'
  * players: [{ player_id, player_name, score }] in seat order (seat index sets the color)
  * series: { score, status } for the rivalry, or null
  * roundState: the game's saved rounds, for the lead band and the comeback and swing chips (optional)
+ * sqid: with game.rivalry_id, lets the talking point strip load the rivalry for series facts (optional)
  */
-const GameOver = ({ game, players, winnerId, series = null, showSkunk = false, roundState = null, onRematch, onStats, onHistory, onClose }) => {
+const GameOver = ({ game, players, winnerId, series = null, showSkunk = false, roundState = null, sqid = null, onRematch, onStats, onHistory, onClose }) => {
   const result = gameResult(players, winnerId)
   if (!result) return null
   const skunk = showSkunk ? skunkLabel(players, winnerId, Number(game?.win_condition_value) || 121) : null
@@ -41,6 +43,8 @@ const GameOver = ({ game, players, winnerId, series = null, showSkunk = false, r
       )}
 
       <LeadBand story={story} players={roundState?.players || []} colors={[]} mode="neutral" winnerId={winnerId} />
+
+      <GameOverTalkingPoint sqid={sqid} game={game} />
 
       <div className="go-final">
         {result.ranked.map((p, i) => (

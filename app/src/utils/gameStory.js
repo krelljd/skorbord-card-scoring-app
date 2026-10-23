@@ -60,7 +60,7 @@ export function gameStory(roundState, { winnerId = null, includeOpen = false } =
     scored.sort((a, b) => (higherIsBetter ? b.points - a.points : a.points - b.points))
     const gap = Math.abs(scored[0].points - scored[1].points)
     if (gap > 0 && (!swing || gap > swing.gap)) {
-      swing = { round: r.round_number, playerId: scored[0].playerId, points: scored[0].points, gap }
+      swing = { round: r.round_number, playerId: scored[0].playerId, points: scored[0].points, second: scored[1].points, gap }
     }
   }
 
@@ -75,6 +75,9 @@ export function gameStory(roundState, { winnerId = null, includeOpen = false } =
   }
 }
 
+/** The deficit a win needs to count as a comeback: at least TRAILED_MIN, or 10% of the target when that is larger. */
+export const comebackNeeded = (target) => (target ? Math.max(TRAILED_MIN, Math.round(target * 0.1)) : TRAILED_MIN)
+
 const signed = (n) => (n > 0 ? `+${n}` : String(n))
 
 /**
@@ -86,8 +89,7 @@ export function storyChips(story, { winnerId, names, target = null }) {
   const chips = []
   const nameOf = (id) => names[id] || 'Someone'
 
-  const needed = target ? Math.max(TRAILED_MIN, Math.round(target * 0.1)) : TRAILED_MIN
-  if (story.deficit && story.deficit.points >= needed) chips.push(`Trailed by ${story.deficit.points}, won`)
+  if (story.deficit && story.deficit.points >= comebackNeeded(target)) chips.push(`Trailed by ${story.deficit.points}, won`)
 
   // The non-winner who led the most rounds, when that beat the winner's own rounds in front
   const others = Object.entries(story.roundsLed).filter(([id]) => id !== winnerId).sort((a, b) => b[1] - a[1])
