@@ -87,6 +87,7 @@ const LastGameResult = ({ sqid, rivalries = [], onNewGame, onRematch, onOpenStat
           series={seriesLine(rivalry?.players)}
           showSkunk={tracksParts}
           roundState={roundState}
+          sqid={sqid}
           onRematch={() => setRematchOpen(true)}
           onStats={onOpenStats}
           onHistory={() => setShowHistory(true)}

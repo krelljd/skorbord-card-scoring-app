@@ -29,7 +29,7 @@ describe('gameStory', () => {
     expect(s.leadChanges).toBe(1)
     expect(s.roundsLed).toEqual({ a: 5, b: 6 })
     expect(s.deficit).toEqual({ playerId: 'a', points: 16 })
-    expect(s.swing).toEqual({ round: 7, playerId: 'a', points: 26, gap: 24 })
+    expect(s.swing).toEqual({ round: 7, playerId: 'a', points: 26, second: 2, gap: 24 })
     expect(s.cells.map((c) => c.leaderId).slice(0, 7)).toEqual(['b', 'b', 'b', 'b', 'b', 'b', 'a'])
   })
 

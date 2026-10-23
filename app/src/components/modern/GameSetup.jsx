@@ -5,6 +5,7 @@ import gameAPI from '../../services/gameAPI.js'
 import { LoadingSpinner } from '../Loading.jsx'
 import { matchPlayerName, sortPlayersForChips, sortGameTypesForChips } from '../../utils/playerMatch.js'
 import { rematchDealer } from '../../utils/gameResult.js'
+import { PregameTalkingPoints } from './TalkingPoint.jsx'
 
 const MAX_PLAYERS = 8
 const colorOf = (i) => `var(--pc-${i % 8})`
@@ -18,6 +19,7 @@ const GameSetup = ({
   sqid,
   gameTypes = [],
   players = [],
+  rivalries = [],
   onGameStart
 }) => {
   const { error: showError } = useToast()
@@ -292,6 +294,8 @@ const GameSetup = ({
           {picked.length < 2 ? 'Pick at least 2 players.' : `${picked.length} players. Seat order is the order you tapped.`}
         </p>
       </section>
+
+      <PregameTalkingPoints sqid={sqid} rivalries={rivalries} picked={picked} gameTypeId={gameType} />
 
       {picked.length >= 2 && (
         <section className="su-sec" aria-labelledby="su-dealer">
