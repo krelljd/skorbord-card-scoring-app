@@ -51,8 +51,8 @@ test('in games where low wins, the margin is how far the closest other player is
 test('games come out oldest first and are capped to the most recent ones', () => {
   const rows = []
   for (let i = 0; i < TIMELINE_LIMIT + 5; i++) {
-    const day = String(i + 1).padStart(3, '0')
-    rows.push(row(`g${i}`, 'p1', 121, { ended_at: `2026-01-${day}` }), row(`g${i}`, 'p2', 100, { ended_at: `2026-01-${day}` }))
+    const at = new Date(Date.UTC(2026, 0, 1) + i * 60000).toISOString()
+    rows.push(row(`g${i}`, 'p1', 121, { ended_at: at }), row(`g${i}`, 'p2', 100, { ended_at: at }))
   }
   rows.reverse()
   const out = summarizeTimeline(rows, new Map())

@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import RoundHistory from './modern/RoundHistory.jsx'
 import gameAPI from '../services/gameAPI.js'
 import { SeriesTimeline, GameTypeOwners, PointsSplit } from './SeriesStats.jsx'
+import SnarkLine from './modern/SnarkLine.jsx'
+import { rivalryFacts } from '../utils/rivalryFacts.js'
 import {
   rankPlayers, headToHeadLabel, rankLabel, winPct, marginText,
   formLetters, formSummary, scoreLine, fmt
@@ -212,6 +214,7 @@ export default function RivalryStatsDetail({ sqid, details, gameTypes, players, 
   const playerStats = details.player_stats || {}
   const roundStats = details.round_stats || {}
   const compact = players.length > 2
+  const historyFacts = rivalryFacts({ players, timeline: details.timeline || [], roundStats })
 
   const statsFor = (player) => {
     const byType = playerStats[player.id] || playerStats[player.name] || {}
@@ -247,6 +250,11 @@ export default function RivalryStatsDetail({ sqid, details, gameTypes, players, 
         <div className="flex justify-center"><div className="loading-state"></div></div>
       ) : (
         <>
+          {(details.timeline || []).length === 0 ? (
+            <section className="st-card" aria-label="First game"><SnarkLine context="empty" variant="card" /></section>
+          ) : historyFacts && (
+            <section className="st-card" aria-label="Snark"><SnarkLine context="history" facts={historyFacts} players={players} variant="card" /></section>
+          )}
           <SeriesTimeline
             timeline={details.timeline}
             players={players}

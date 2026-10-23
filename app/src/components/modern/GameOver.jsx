@@ -44,7 +44,7 @@ const GameOver = ({ game, players, winnerId, series = null, showSkunk = false, r
 
       <LeadBand story={story} players={roundState?.players || []} colors={[]} mode="neutral" winnerId={winnerId} />
 
-      <GameOverTalkingPoint sqid={sqid} game={game} />
+      <GameOverTalkingPoint sqid={sqid} game={game} winnerId={winnerId} winnerName={result.winner.player_name} />
 
       <div className="go-final">
         {result.ranked.map((p, i) => (
