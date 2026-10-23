@@ -1,28 +1,35 @@
 import { useState } from 'react'
 import useRivalryDetails from '../../hooks/useRivalryDetails.js'
 import { talkingPoints } from '../../utils/talkingPoints.js'
+import { rivalryFacts } from '../../utils/rivalryFacts.js'
+import SnarkLine from './SnarkLine.jsx'
 
 /**
  * One surprising fact about the series after a game, on the Game Over screen. Tap "Next fact" to step
  * through up to three. It appears once the rivalry loads; the game's own facts are already chips above it.
  */
-export const GameOverTalkingPoint = ({ sqid, game }) => {
+export const GameOverTalkingPoint = ({ sqid, game, winnerId = null, winnerName = '' }) => {
   const details = useRivalryDetails(sqid, game?.rivalry_id)
   const [index, setIndex] = useState(0)
   const facts = talkingPoints({ context: 'gameover', players: details?.players || [], timeline: details?.timeline || [], gameTypeId: game?.game_type_id })
-  if (!facts.length) return null
-  const shown = facts[Math.min(index, facts.length - 1)]
+  const wins = (details?.timeline || []).filter((g) => g.winner_id === winnerId).length
+  const shown = facts.length ? facts[Math.min(index, facts.length - 1)] : null
 
   return (
-    <div className="go-tp" data-testid="talking-point">
-      <span className="go-tp-label">Talking point</span>
-      <p className="go-tp-text" aria-live="polite" key={shown.id}>{shown.text}</p>
-      {facts.length > 1 && (
-        <button type="button" className="go-tp-next" onClick={() => setIndex((i) => (i + 1) % facts.length)}>
-          Next fact · {Math.min(index, facts.length - 1) + 1} of {facts.length}
-        </button>
+    <>
+      {shown && (
+        <div className="go-tp" data-testid="talking-point">
+          <span className="go-tp-label">Talking point</span>
+          <p className="go-tp-text" aria-live="polite" key={shown.id}>{shown.text}</p>
+          {facts.length > 1 && (
+            <button type="button" className="go-tp-next" onClick={() => setIndex((i) => (i + 1) % facts.length)}>
+              Next fact · {Math.min(index, facts.length - 1) + 1} of {facts.length}
+            </button>
+          )}
+        </div>
       )}
-    </div>
+      {winnerName && <SnarkLine context="winner" winner={winnerName} wins={wins} variant="flood" />}
+    </>
   )
 }
 
@@ -41,7 +48,8 @@ export const PregameTalkingPoints = ({ sqid, rivalries = [], picked = [], gameTy
   const details = useRivalryDetails(sqid, rivalry?.id)
   if (!rivalry || !details) return null
   const facts = talkingPoints({ context: 'pregame', players: details.players || [], timeline: details.timeline || [], gameTypeId, max: 2 })
-  if (!facts.length) return null
+  const history = rivalryFacts({ players: details.players || [], timeline: details.timeline || [], roundStats: details.round_stats, gameTypeId })
+  if (!facts.length && !history) return null
 
   return (
     <section className="su-sec" aria-label="Talking points" data-testid="pregame-points">
@@ -51,6 +59,7 @@ export const PregameTalkingPoints = ({ sqid, rivalries = [], picked = [], gameTy
           <span className="su-tp-text">{f.text}</span>
         </div>
       ))}
+      <SnarkLine context="pregame" facts={history} players={details.players || []} variant="strip" />
     </section>
   )
 }

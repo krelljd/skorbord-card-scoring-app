@@ -4,7 +4,8 @@
  * final scores are used.
  */
 
-export const TIMELINE_LIMIT = 40;
+// High enough that records ("biggest blowout ever") cover the whole history; the Stats chart draws only its latest games.
+export const TIMELINE_LIMIT = 1000;
 
 /**
  * One entry per game, oldest first, capped to the most recent TIMELINE_LIMIT.

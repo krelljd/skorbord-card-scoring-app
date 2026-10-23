@@ -3,6 +3,7 @@ import { currentStreak, longestStreaks, barHeights, gameTypeOwner, pointsShares,
 
 const colorOf = (index) => ({ '--c': `var(--pc-${index % 8})` })
 const MIN_GAMES = 3
+const CHART_GAMES = 40 // the API sends the whole history; the chart draws only the latest games
 
 const W = 340
 const PAD = 8
@@ -18,13 +19,14 @@ const dateText = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { m
  */
 export function SeriesTimeline({ timeline = [], players = [], onOpenGame }) {
   const indexOf = Object.fromEntries(players.map((p, i) => [p.id, i]))
-  const games = timeline.filter((g) => indexOf[g.winner_id] !== undefined)
+  const all = timeline.filter((g) => indexOf[g.winner_id] !== undefined)
+  const games = all.slice(-CHART_GAMES)
   if (games.length < MIN_GAMES || players.length < 2) return null
 
   const nameOf = (id) => players.find((p) => p.id === id)?.name
   const heights = barHeights(games)
-  const streak = currentStreak(games)
-  const best = longestStreaks(games).best
+  const streak = currentStreak(all)
+  const best = longestStreaks(all).best
   // The current streak is the longest one on record: say it once
   const longest = best.playerId === streak.playerId && best.length === streak.length ? { length: 0 } : best
 

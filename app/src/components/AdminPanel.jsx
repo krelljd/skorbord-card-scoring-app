@@ -1,5 +1,31 @@
 import { useState } from 'react'
 import RivalryAdmin from './RivalryAdmin.jsx'
+import useSnarkSetting from '../hooks/useSnarkSetting.js'
+
+const SNARK_OPTIONS = [
+  ['off', 'Off', 'No snarky lines anywhere.'],
+  ['mild', 'Mild', 'Gentle teasing, drawn from your history.'],
+  ['spicy', 'Spicy', 'Mild and spicy lines, mixed.']
+]
+
+// Saved on this phone only, so it is not behind anything and changes nothing for anyone else
+const SnarkSetting = () => {
+  const [level, setLevel] = useSnarkSetting()
+  const current = SNARK_OPTIONS.find(([id]) => id === level)
+  return (
+    <section className="st-card space-y-2" aria-labelledby="ad-snark">
+      <h4 id="ad-snark" className="st-lbl">Snark</h4>
+      <div className="st-seg" role="radiogroup" aria-label="Snark level">
+        {SNARK_OPTIONS.map(([id, label]) => (
+          <button key={id} type="button" role="radio" aria-checked={level === id} className={level === id ? 'st-seg-on' : ''} onClick={() => setLevel(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="st-key">{current[2]} Saved on this phone.</p>
+    </section>
+  )
+}
 
 const AdminPanel = ({ 
   sqid, 
@@ -276,6 +302,7 @@ const AdminPanel = ({
           </section>
         </>
       )}
+      <SnarkSetting />
     </div>
   )
 }

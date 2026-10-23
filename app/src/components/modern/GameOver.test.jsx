@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import GameOver, { RematchSheet } from './GameOver.jsx'
+import { resetSnarkSetting } from '../../hooks/useSnarkSetting.js'
 
 const players = [
   { player_id: 'a', player_name: 'Jason', score: 121 },
@@ -24,6 +25,21 @@ describe('GameOver', () => {
     fireEvent.click(screen.getByText('Rivalry stats'))
     expect(onRematch).toHaveBeenCalled()
     expect(onStats).toHaveBeenCalled()
+  })
+
+  it('shows a winner-only snark line, never naming the loser, and hides it when snark is Off', () => {
+    window.localStorage.clear()
+    const { unmount } = render(<GameOver game={game} players={players} winnerId="a" onRematch={() => {}} onStats={() => {}} onHistory={() => {}} onClose={() => {}} />)
+    const line = screen.getByTestId('snark-line').textContent
+    expect(line).toMatch(/Jason/)
+    expect(line).not.toMatch(/Sam/)
+    unmount()
+    window.localStorage.setItem('skorbord-snark', 'off')
+    resetSnarkSetting()
+    render(<GameOver game={game} players={players} winnerId="a" onRematch={() => {}} onStats={() => {}} onHistory={() => {}} onClose={() => {}} />)
+    expect(screen.queryByTestId('snark-line')).toBeNull()
+    window.localStorage.clear()
+    resetSnarkSetting()
   })
 
   it('hides the skunk chip unless asked', () => {
