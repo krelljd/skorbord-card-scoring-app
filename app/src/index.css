@@ -948,6 +948,18 @@
   .so-owner { font-size: 1.25rem; line-height: 1.15; font-weight: 700; overflow-wrap: anywhere; }
 }
 @keyframes sr-grow { to { transform: scaleY(1); } }
+
+/* Lead band: who led after each round */
+@layer components {
+  .lb { margin: 0.5rem 0 0; }
+  .lb svg { display: block; width: 100%; height: auto; }
+  .lb-cell { opacity: 0; animation: lb-in .35s ease-out forwards; }
+  .lb-cap { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin-top: 0.25rem; font-size: 0.6875rem; opacity: 0.85; }
+  .lb-key { display: inline-flex; align-items: center; gap: 0.25rem; }
+  .lb-key > i { width: 0.625rem; height: 0.625rem; border-radius: 0.1875rem; display: inline-block; }
+  .lb-tie { border: 1px dashed currentColor; }
+}
+@keyframes lb-in { to { opacity: 1; } }
 @keyframes rh-draw { to { stroke-dashoffset: 0; } }
 @keyframes rh-fade { to { opacity: 1; } }
 @keyframes rh-in { to { opacity: 1; transform: none; } }
@@ -957,4 +969,5 @@
   .rh-pop, .rh-in, .rh-gain { animation: none; opacity: 1; transform: none; }
   .rh-race { transition: none; }
   .sr-grow { animation: none; transform: none; }
+  .lb-cell { animation: none; opacity: 1; }
 }

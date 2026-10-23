@@ -32,6 +32,14 @@ describe('RoundHistory', () => {
     expect(bob).toHaveTextContent('74')
   })
 
+  it('shows who led after each round once three real rounds are saved', () => {
+    const { rerender } = render(<RoundHistory roundState={roundState} onEdit={() => {}} onClose={() => {}} canEdit />)
+    expect(screen.queryByTestId('lead-band')).toBeNull() // two real rounds: not enough yet
+    const three = { ...roundState, rounds: [...roundState.rounds.slice(0, 3), round(4, { a: 0, b: 40 })] }
+    rerender(<RoundHistory roundState={three} onEdit={() => {}} onClose={() => {}} canEdit />)
+    expect(screen.getByRole('img', { name: /Who led after each round: Ann rounds 2 to 3, Bob round 4/ })).toBeInTheDocument()
+  })
+
   const cribState = {
     game: { score_parts: ['play', 'hand', 'crib'] },
     players: roundState.players,

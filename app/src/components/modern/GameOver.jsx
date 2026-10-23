@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { gameResult, skunkLabel } from '../../utils/gameResult.js'
+import { gameStory, storyChips } from '../../utils/gameStory.js'
+import LeadBand from './LeadBand.jsx'
 
 /**
  * Full-screen result after a game is finalized. The screen floods in the winner's player color,
@@ -7,11 +9,16 @@ import { gameResult, skunkLabel } from '../../utils/gameResult.js'
  *
  * players: [{ player_id, player_name, score }] in seat order (seat index sets the color)
  * series: { score, status } for the rivalry, or null
+ * roundState: the game's saved rounds, for the lead band and the comeback and swing chips (optional)
  */
-const GameOver = ({ game, players, winnerId, series = null, showSkunk = false, onRematch, onStats, onHistory, onClose }) => {
+const GameOver = ({ game, players, winnerId, series = null, showSkunk = false, roundState = null, onRematch, onStats, onHistory, onClose }) => {
   const result = gameResult(players, winnerId)
   if (!result) return null
   const skunk = showSkunk ? skunkLabel(players, winnerId, Number(game?.win_condition_value) || 121) : null
+  // The last draft may not have reached the client's round list yet, so count it when it has points
+  const story = gameStory(roundState, { winnerId, includeOpen: true })
+  const target = game?.win_condition_type === 'win' ? Number(game.win_condition_value) || null : null
+  const storyLines = storyChips(story, { winnerId, names: Object.fromEntries(players.map((p) => [p.player_id, p.player_name])), target })
   const margin = `by ${result.margin} point${result.margin === 1 ? '' : 's'}`
 
   return (
@@ -24,13 +31,16 @@ const GameOver = ({ game, players, winnerId, series = null, showSkunk = false, o
       <h2 className="go-title">{result.winner.player_name}<br />wins</h2>
       <p className="go-sub">{margin}</p>
 
-      {(series || skunk) && (
+      {(series || skunk || storyLines.length > 0) && (
         <div className="go-chips">
           {skunk && <span className="go-chip">{skunk}</span>}
           {series && <span className="go-chip">Series {series.score}</span>}
           {series && <span className="go-chip">{series.status}</span>}
+          {storyLines.map((line) => <span key={line} className="go-chip">{line}</span>)}
         </div>
       )}
+
+      <LeadBand story={story} players={roundState?.players || []} colors={[]} mode="neutral" winnerId={winnerId} />
 
       <div className="go-final">
         {result.ranked.map((p, i) => (

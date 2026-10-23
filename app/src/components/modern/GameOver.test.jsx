@@ -32,6 +32,34 @@ describe('GameOver', () => {
   })
 })
 
+describe('GameOver game story', () => {
+  const rs = (perPlayer) => ({
+    game: { win_condition_type: 'win' },
+    players: [{ player_id: 'a', player_name: 'Jason' }, { player_id: 'b', player_name: 'Sam' }],
+    rounds: perPlayer.a.map((_, i) => ({ round_number: i + 1, status: 'committed', is_backfill: 0, scores: { a: perPlayer.a[i], b: perPlayer.b[i] } }))
+  })
+  const close = { players: [{ player_id: 'a', player_name: 'Jason', score: 121 }, { player_id: 'b', player_name: 'Sam', score: 110 }] }
+  const props = { game, winnerId: 'a', onRematch: () => {}, onStats: () => {}, onHistory: () => {}, onClose: () => {} }
+
+  it('shows the lead band and the comeback and swing chips', () => {
+    const comeback = rs({ a: [5, 8, 6, 10, 7, 9, 26, 11, 12, 15, 12], b: [12, 9, 14, 6, 11, 8, 2, 10, 13, 9, 7] })
+    render(<GameOver {...props} {...close} roundState={comeback} />)
+    expect(screen.getByText('Trailed by 16, won')).toBeInTheDocument()
+    expect(screen.getByText('Swing round: R7, Jason +26')).toBeInTheDocument()
+    expect(screen.getByTestId('lead-band')).toBeInTheDocument()
+  })
+
+  it('adds nothing to a wire-to-wire win except the band', () => {
+    render(<GameOver {...props} {...close} roundState={rs({ a: [10, 10, 10, 10], b: [1, 2, 3, 4] })} />)
+    expect(screen.queryByText(/Trailed|Lead changed|^Swing round:/)).toBeNull()
+  })
+
+  it('shows neither without saved rounds', () => {
+    render(<GameOver {...props} {...close} />)
+    expect(screen.queryByTestId('lead-band')).toBeNull()
+  })
+})
+
 describe('RematchSheet', () => {
   it('starts with the alternated dealer, and the dealer can be changed', () => {
     const onStart = vi.fn()
