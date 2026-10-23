@@ -3,6 +3,7 @@ import { createResponse } from '../utils/helpers.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
 import { getRivalryRoundStats } from '../services/roundStats.js';
+import { getRivalrySeries } from '../services/seriesStats.js';
 import crypto from 'crypto';
 import { requireAdminPin, adminActionLimiter } from '../middleware/adminAuth.js';
 import { deleteRivalryCascade } from '../utils/rivalryAdmin.js';
@@ -157,6 +158,7 @@ router.get('/:rivalryId', async (req, res, next) => {
     }
     rivalry.player_stats = playerStats;
     rivalry.round_stats = await getRivalryRoundStats(db, rivalry.id);
+    Object.assign(rivalry, await getRivalrySeries(db, rivalry.id));
 
     // Optionally, calculate aggregate wins/losses if needed
     // Removed aggregate rivalry stats. Only per-player stats are tracked and returned.

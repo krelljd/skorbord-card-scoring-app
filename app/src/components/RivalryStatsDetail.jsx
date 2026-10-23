@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import RoundHistory from './modern/RoundHistory.jsx'
 import gameAPI from '../services/gameAPI.js'
+import { SeriesTimeline, GameTypeOwners, PointsSplit } from './SeriesStats.jsx'
 import {
   rankPlayers, headToHeadLabel, rankLabel, winPct, marginText,
   formLetters, formSummary, scoreLine, fmt
@@ -246,10 +247,23 @@ export default function RivalryStatsDetail({ sqid, details, gameTypes, players, 
         <div className="flex justify-center"><div className="loading-state"></div></div>
       ) : (
         <>
+          <SeriesTimeline
+            timeline={details.timeline}
+            players={players}
+            onOpenGame={(g) => openHistory({ ...g, completed_at: g.ended_at })}
+          />
+          <GameTypeOwners gameTypes={gameTypes} players={players} playerStats={playerStats} />
           <RecentGames games={details.recent_games} players={players} directionByName={directionByName} onOpen={openHistory} />
           <GameTypeTabs gameTypes={gameTypes} selected={activeId} onSelect={setSelectedType} />
           {!higherIsBetter && <p className="st-note">{gt.name}: lower score wins. Best round is the lowest.</p>}
           {entries.map((entry) => <PlayerCard key={entry.player.id} entry={entry} compact={compact} higherIsBetter={higherIsBetter} />)}
+          <PointsSplit
+            pointsTotals={details.points_totals}
+            players={players}
+            gameTypeId={gt.id || gt.game_type_id}
+            wins={entries.map((e) => ({ id: e.player.id, wins: Number(e.stats.wins) || 0 }))}
+            higherIsBetter={higherIsBetter}
+          />
           <PartsCard entries={entries} />
           <SkunksCard entries={entries} />
           <button className="btn btn-primary w-full min-h-11" onClick={backToSetup}>Start New Game</button>
