@@ -6,6 +6,8 @@ import { LoadingSpinner } from '../Loading.jsx'
 import { matchPlayerName, sortPlayersForChips, sortGameTypesForChips } from '../../utils/playerMatch.js'
 import { rematchDealer } from '../../utils/gameResult.js'
 import { PregameTalkingPoints } from './TalkingPoint.jsx'
+import UnfinishedGames from './UnfinishedGames.jsx'
+import StartPrompt from './StartPrompt.jsx'
 
 const MAX_PLAYERS = 8
 const colorOf = (i) => `var(--pc-${i % 8})`
@@ -20,7 +22,9 @@ const GameSetup = ({
   gameTypes = [],
   players = [],
   rivalries = [],
-  onGameStart
+  onGameStart,
+  onResume,
+  onKeepPlaying
 }) => {
   const { error: showError } = useToast()
   const { loading: isLoading, withLoading } = useLoading()
@@ -40,6 +44,9 @@ const GameSetup = ({
   const [dealerKey, setDealerKey] = useState('random')
   const [last, setLast] = useState(null) // { game, playerIds, dealerId } for Same again
   const [starting, setStarting] = useState(false)
+  const [unfinished, setUnfinished] = useState([]) // unfinished games, the one being played flagged is_active
+  const [busyId, setBusyId] = useState(null)
+  const [pendingStart, setPendingStart] = useState(null) // the start action waiting on the prompt
 
   // Default to the first favorite (or the first game type) until the person chooses
   useEffect(() => {
@@ -64,6 +71,44 @@ const GameSetup = ({
     })()
     return () => { cancelled = true }
   }, [sqid])
+
+  // Unfinished games for this board, so the list and the Start prompt use the server's view
+  useEffect(() => {
+    let cancelled = false
+    gameAPI.getUnfinishedGames(sqid)
+      .then((list) => { if (!cancelled && Array.isArray(list)) setUnfinished(list) })
+      .catch(() => {}) // offline or none: the list just does not show
+    return () => { cancelled = true }
+  }, [sqid])
+
+  const playing = unfinished.find((g) => g.is_active)
+  const parked = unfinished.filter((g) => !g.is_active)
+
+  // Starting while a game with scores is in progress asks first
+  const guardStart = (action) => {
+    if (playing) setPendingStart(() => action)
+    else action()
+  }
+
+  const resume = async (game) => {
+    setBusyId(game.id)
+    try {
+      await gameAPI.resumeGame(sqid, game.id)
+      await onResume?.(game)
+    } catch (error) {
+      showError(`Could not resume the game: ${error.message}`)
+      setBusyId(null)
+    }
+  }
+
+  const discard = async (game) => {
+    try {
+      await gameAPI.discardGame(sqid, game.id)
+      setUnfinished((list) => list.filter((g) => g.id !== game.id))
+    } catch (error) {
+      showError(`Could not discard the game: ${error.message}`)
+    }
+  }
 
   const selectedType = gameTypes.find((g) => g.id === gameType)
   const sameAgainType = last && gameTypes.find((g) => g.id === last.game.game_type_id)
@@ -107,9 +152,13 @@ const GameSetup = ({
 
   const canStart = Boolean(gameType) && picked.length >= 2 && (!useCustom || Number(customValue) > 0)
 
-  const start = async (e) => {
+  const start = (e) => {
     e?.preventDefault()
     if (!canStart) return
+    guardStart(startGame)
+  }
+
+  const startGame = async () => {
     try {
       await withLoading(async () => {
         // Save new names first, so the game and the first dealer can use real player ids
@@ -141,7 +190,9 @@ const GameSetup = ({
     }
   }
 
-  const sameAgain = async () => {
+  const sameAgain = () => guardStart(startSameAgain)
+
+  const startSameAgain = async () => {
     setStarting(true)
     try {
       const g = last.game
@@ -173,6 +224,8 @@ const GameSetup = ({
   return (
     <form onSubmit={start} className="space-y-4">
       <h1 className="text-2xl font-bold">New game</h1>
+
+      <UnfinishedGames games={parked} busyId={busyId} onResume={resume} onDiscard={discard} />
 
       {last && sameAgainType && (
         <div className="su-again" style={{ '--c': colorOf(0) }}>
@@ -320,6 +373,14 @@ const GameSetup = ({
       <button type="submit" className="btn btn-primary btn-block min-h-12" disabled={!canStart}>
         Start game
       </button>
+      {pendingStart && playing && (
+        <StartPrompt
+          game={playing}
+          onKeep={() => { setPendingStart(null); onKeepPlaying?.() }}
+          onPark={() => { const go = pendingStart; setPendingStart(null); go() }}
+          onCancel={() => setPendingStart(null)}
+        />
+      )}
     </form>
   )
 }

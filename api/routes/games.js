@@ -6,6 +6,7 @@ import {
 } from '../middleware/validation.js';
 import { createResponse, generateUUID, calculateRivalryStats } from '../utils/helpers.js';
 import { closeOpenRound } from '../services/rounds.js';
+import { discardEmptyGames, listUnfinished, resumeGame } from '../services/unfinishedGames.js';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
 
@@ -44,6 +45,18 @@ router.get('/active', async (req, res, next) => {
       game.win_condition_value = game.is_win_condition ? game.win_condition : game.loss_condition;
     }
     res.json(createResponse(true, game));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/:sqid/games/unfinished - Unfinished games from the last 30 days (active one flagged)
+ */
+router.get('/unfinished', async (req, res, next) => {
+  try {
+    const games = await listUnfinished(db, req.params.sqid);
+    res.json(createResponse(true, games));
   } catch (error) {
     next(error);
   }
@@ -176,8 +189,10 @@ router.post('/', validateCreateGame, async (req, res, next) => {
 
     // Create game within a transaction
     const result = await db.transaction(async (db) => {
-      // Keep any unfinished game for this sqid (scores and rounds included) but mark it
-      // abandoned so it is never offered as the active game again.
+      // A game with no scores is not worth parking: discard it quietly.
+      await discardEmptyGames(db, sqid);
+      // Keep any other unfinished game for this sqid (scores and rounds included), parked
+      // so it can be resumed from the New game screen.
       await db.run(
         'UPDATE games SET abandoned_at = ? WHERE sqid_id = ? AND finalized = false AND abandoned_at IS NULL',
         [new Date().toISOString(), sqid]
@@ -258,6 +273,27 @@ router.post('/', validateCreateGame, async (req, res, next) => {
     });
 
     res.status(201).json(createResponse(true, result));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/:sqid/games/:gameId/resume - Make a parked unfinished game the active one
+ */
+router.post('/:gameId/resume', validateGameAccess, async (req, res, next) => {
+  try {
+    const { sqid } = req.params;
+    const { gameInfo } = req;
+    await resumeGame(db, sqid, gameInfo.id);
+    req.io?.to(`/sqid/${gameInfo.sqid_id}`).emit('game_updated', {
+      type: 'game_updated',
+      gameId: gameInfo.id,
+      sqidId: gameInfo.sqid_id,
+      finalized: false,
+      timestamp: new Date().toISOString()
+    });
+    res.json(createResponse(true, { id: gameInfo.id }));
   } catch (error) {
     next(error);
   }
