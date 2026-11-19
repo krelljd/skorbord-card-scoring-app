@@ -162,6 +162,12 @@ const ModernCardApp = () => {
                   gameTypes={gameTypes}
                   players={players}
                   rivalries={rivalries}
+                  onResume={async () => {
+                    await refreshData()
+                    setGameKey((k) => k + 1) // remount GamePlay on the resumed game
+                    setCurrentView('playing')
+                  }}
+                  onKeepPlaying={() => setCurrentView('playing')}
                   onGameStart={async () => {
                     await refreshData() // new players and the new rivalry show up right away
                     setCurrentView('playing')

@@ -59,6 +59,23 @@ class GameAPI {
     return response?.data || null
   }
 
+  // Unfinished games from the last 30 days; the one being played has is_active: true
+  async getUnfinishedGames(sqid) {
+    const response = await this.request(`/api/${sqid}/games/unfinished`)
+    return response?.data || []
+  }
+
+  // Make a parked unfinished game the active one
+  async resumeGame(sqid, gameId) {
+    const response = await this.request(`/api/${sqid}/games/${gameId}/resume`, { method: 'POST' })
+    return response?.data
+  }
+
+  // Delete an unfinished game
+  async discardGame(sqid, gameId) {
+    return this.request(`/api/${sqid}/games/${gameId}`, { method: 'DELETE' })
+  }
+
   // Alias for getActiveGame for useGameManager compatibility
   async getGame(sqid) {
     return this.getActiveGame(sqid)

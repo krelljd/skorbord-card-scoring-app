@@ -69,3 +69,94 @@ describe('GameSetup', () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith('s', expect.objectContaining({ player_ids: ['a', 'b'], dealer_id: 'b', game_type_id: 'crib' })))
   })
 })
+
+describe('GameSetup unfinished games', () => {
+  const parkedGame = {
+    id: 'g-old', is_active: false, game_type_name: 'Pitch', current_round: 5, last_activity: new Date().toISOString(),
+    players: [{ id: 'a', name: 'Jason', score: 41 }, { id: 'b', name: 'Sam', score: 38 }]
+  }
+  const playingGame = {
+    id: 'g-now', is_active: true, game_type_name: 'Cribbage', current_round: 7, last_activity: new Date().toISOString(),
+    players: [{ id: 'a', name: 'Jason', score: 64 }, { id: 'b', name: 'Sam', score: 57 }]
+  }
+  const pickPlayers = () => {
+    fireEvent.click(screen.getByRole('button', { name: /Jason/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Sam/ }))
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(gameAPI, 'request').mockResolvedValue({ data: [] })
+  })
+
+  it('lists parked games, not the one being played, and resumes one', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([playingGame, parkedGame])
+    const resume = vi.spyOn(gameAPI, 'resumeGame').mockResolvedValue({ id: 'g-old' })
+    const onResume = vi.fn()
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} onResume={onResume} />)
+
+    const button = await screen.findByRole('button', { name: /Resume Pitch/ })
+    expect(screen.queryByRole('button', { name: /Resume Cribbage/ })).toBeNull()
+    fireEvent.click(button)
+    await waitFor(() => expect(onResume).toHaveBeenCalled())
+    expect(resume).toHaveBeenCalledWith('s', 'g-old')
+  })
+
+  it('shows no list when there are no parked games', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([playingGame])
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} />)
+    await waitFor(() => expect(gameAPI.getUnfinishedGames).toHaveBeenCalled())
+    expect(screen.queryByText('Unfinished games')).toBeNull()
+  })
+
+  it('discards only after a confirm', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([parkedGame])
+    const discard = vi.spyOn(gameAPI, 'discardGame').mockResolvedValue({})
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} />)
+    await screen.findByText('Unfinished games')
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(discard).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(discard).toHaveBeenCalledWith('s', 'g-old'))
+    await waitFor(() => expect(screen.queryByText('Unfinished games')).toBeNull())
+  })
+
+  it('asks before starting over a game in progress: keep playing goes back to it', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([playingGame])
+    const create = vi.spyOn(gameAPI, 'createGame').mockResolvedValue({ id: 'n' })
+    const onKeepPlaying = vi.fn()
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} onKeepPlaying={onKeepPlaying} />)
+    await waitFor(() => expect(gameAPI.getUnfinishedGames).toHaveBeenCalled())
+    pickPlayers()
+    await screen.findByText(/^Pick at least|2 players/)
+    await waitFor(() => expect(screen.queryByText('Unfinished games')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep playing that game' }))
+    expect(onKeepPlaying).toHaveBeenCalled()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('park it and start new creates the game', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([playingGame])
+    const create = vi.spyOn(gameAPI, 'createGame').mockResolvedValue({ id: 'n' })
+    const onGameStart = vi.fn()
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} onGameStart={onGameStart} />)
+    await waitFor(() => expect(gameAPI.getUnfinishedGames).toHaveBeenCalled())
+    pickPlayers()
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Park it and start new' }))
+    await waitFor(() => expect(onGameStart).toHaveBeenCalled())
+    expect(create).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts straight away when nothing is in progress', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([])
+    const create = vi.spyOn(gameAPI, 'createGame').mockResolvedValue({ id: 'n' })
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} onGameStart={vi.fn()} />)
+    await waitFor(() => expect(gameAPI.getUnfinishedGames).toHaveBeenCalled())
+    pickPlayers()
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+    await waitFor(() => expect(create).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
