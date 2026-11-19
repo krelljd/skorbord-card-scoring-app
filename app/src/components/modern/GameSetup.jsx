@@ -82,7 +82,8 @@ const GameSetup = ({
   }, [sqid])
 
   const playing = unfinished.find((g) => g.is_active)
-  const parked = unfinished.filter((g) => !g.is_active)
+  const parked = unfinished.filter((g) => !g.is_active && !g.is_old)
+  const older = unfinished.filter((g) => !g.is_active && g.is_old)
 
   // Starting while a game with scores is in progress asks first
   const guardStart = (action) => {
@@ -107,6 +108,15 @@ const GameSetup = ({
       setUnfinished((list) => list.filter((g) => g.id !== game.id))
     } catch (error) {
       showError(`Could not discard the game: ${error.message}`)
+    }
+  }
+
+  const discardOlder = async () => {
+    try {
+      await gameAPI.discardOlderGames(sqid)
+      setUnfinished((list) => list.filter((g) => !g.is_old))
+    } catch (error) {
+      showError(`Could not discard older games: ${error.message}`)
     }
   }
 
@@ -225,7 +235,7 @@ const GameSetup = ({
     <form onSubmit={start} className="space-y-4">
       <h1 className="text-2xl font-bold">New game</h1>
 
-      <UnfinishedGames games={parked} busyId={busyId} onResume={resume} onDiscard={discard} />
+      <UnfinishedGames games={parked} olderGames={older} busyId={busyId} onResume={resume} onDiscard={discard} onDiscardOlder={discardOlder} />
 
       {last && sameAgainType && (
         <div className="su-again" style={{ '--c': colorOf(0) }}>

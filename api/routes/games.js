@@ -6,7 +6,7 @@ import {
 } from '../middleware/validation.js';
 import { createResponse, generateUUID, calculateRivalryStats } from '../utils/helpers.js';
 import { closeOpenRound } from '../services/rounds.js';
-import { discardEmptyGames, listUnfinished, resumeGame } from '../services/unfinishedGames.js';
+import { discardEmptyGames, discardOlderGames, listUnfinished, resumeGame } from '../services/unfinishedGames.js';
 import { NotFoundError, ConflictError, ValidationError } from '../middleware/errorHandler.js';
 import db from '../db/database.js';
 
@@ -51,12 +51,24 @@ router.get('/active', async (req, res, next) => {
 });
 
 /**
- * GET /api/:sqid/games/unfinished - Unfinished games from the last 30 days (active one flagged)
+ * GET /api/:sqid/games/unfinished - Unfinished games (active and 30-day-old ones flagged)
  */
 router.get('/unfinished', async (req, res, next) => {
   try {
     const games = await listUnfinished(db, req.params.sqid);
     res.json(createResponse(true, games));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/:sqid/games/unfinished/discard-older - Delete parked games with no activity for 30 days
+ */
+router.post('/unfinished/discard-older', async (req, res, next) => {
+  try {
+    const discarded = await discardOlderGames(db, req.params.sqid);
+    res.json(createResponse(true, { discarded }));
   } catch (error) {
     next(error);
   }
