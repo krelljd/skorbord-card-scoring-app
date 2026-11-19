@@ -160,3 +160,54 @@ describe('GameSetup unfinished games', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
+
+describe('GameSetup older unfinished games', () => {
+  const recent = {
+    id: 'g-new', is_active: false, is_old: false, game_type_name: 'Pitch', current_round: 5, last_activity: new Date().toISOString(),
+    players: [{ id: 'a', name: 'Jason', score: 41 }, { id: 'b', name: 'Sam', score: 38 }]
+  }
+  const old = {
+    id: 'g-old', is_active: false, is_old: true, game_type_name: 'Golf', current_round: 3, last_activity: '2026-01-05T12:00:00Z',
+    players: [{ id: 'a', name: 'Jason', score: 12 }, { id: 'b', name: 'Sam', score: 9 }]
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(gameAPI, 'request').mockResolvedValue({ data: [] })
+  })
+
+  it('keeps old games out of the main list behind an Older games row', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([recent, old])
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} />)
+    await screen.findByRole('button', { name: /Resume Pitch/ })
+    expect(screen.queryByRole('button', { name: /Resume Golf/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Older games/ }))
+    expect(screen.getByRole('dialog', { name: 'Older games' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Resume Golf/ })).toBeInTheDocument()
+    expect(screen.getByText(/Jan 5/)).toBeInTheDocument()
+  })
+
+  it('shows the section when only old games exist, and resumes one', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([old])
+    const resume = vi.spyOn(gameAPI, 'resumeGame').mockResolvedValue({ id: 'g-old' })
+    const onResume = vi.fn()
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} onResume={onResume} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Older games/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Resume Golf/ }))
+    await waitFor(() => expect(onResume).toHaveBeenCalled())
+    expect(resume).toHaveBeenCalledWith('s', 'g-old')
+  })
+
+  it('discards all older games after a confirm', async () => {
+    vi.spyOn(gameAPI, 'getUnfinishedGames').mockResolvedValue([recent, old])
+    const discardAll = vi.spyOn(gameAPI, 'discardOlderGames').mockResolvedValue({ discarded: 1 })
+    render(<GameSetup sqid="s" gameTypes={gameTypes} players={players} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Older games/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Discard all older games' }))
+    expect(discardAll).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard all' }))
+    await waitFor(() => expect(discardAll).toHaveBeenCalledWith('s'))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Older games/ })).toBeNull())
+    expect(screen.getByRole('button', { name: /Resume Pitch/ })).toBeInTheDocument()
+  })
+})

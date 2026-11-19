@@ -71,6 +71,12 @@ class GameAPI {
     return response?.data
   }
 
+  // Delete every parked game with no activity for 30 days
+  async discardOlderGames(sqid) {
+    const response = await this.request(`/api/${sqid}/games/unfinished/discard-older`, { method: 'POST' })
+    return response?.data
+  }
+
   // Delete an unfinished game
   async discardGame(sqid, gameId) {
     return this.request(`/api/${sqid}/games/${gameId}`, { method: 'DELETE' })

@@ -6,7 +6,8 @@ import { ConflictError, NotFoundError } from '../middleware/errorHandler.js';
  * their scores and rounds and can be resumed.
  *
  * - A game with no scores (no committed round and every total zero) is discarded quietly.
- * - Parked games older than 30 days (by last activity) are hidden. The rows are kept.
+ * - Parked games older than 30 days (by last activity) are flagged is_old. The app shows them
+ *   apart, under Older games. Resuming one counts as activity, so it rejoins the main list.
  */
 
 export const UNFINISHED_MAX_AGE_DAYS = 30;
@@ -36,7 +37,10 @@ export async function discardEmptyGames(db, sqid) {
   return empty.length;
 }
 
-/** Unfinished games from the last 30 days, newest first. is_active marks the one being played. */
+/**
+ * Unfinished games, newest first. is_active marks the one being played; is_old marks parked games
+ * with no activity for 30 days.
+ */
 export async function listUnfinished(db, sqid, { now = new Date() } = {}) {
   await discardEmptyGames(db, sqid);
 
@@ -58,8 +62,8 @@ export async function listUnfinished(db, sqid, { now = new Date() } = {}) {
 
   const kept = [];
   for (const game of games) {
-    // the active game is always shown; parked games age out
-    if (!game.is_active && game.last_activity < cutoff) continue;
+    // the active game is never old; parked games age out to Older games
+    game.is_old = !game.is_active && game.last_activity < cutoff;
     if (!game.win_condition_type || !game.win_condition_value) {
       game.win_condition_type = game.is_win_condition ? 'win' : 'lose';
       game.win_condition_value = game.is_win_condition ? game.win_condition : game.loss_condition;
@@ -79,8 +83,8 @@ export async function listUnfinished(db, sqid, { now = new Date() } = {}) {
 
 /**
  * Makes a parked game the active one. The game being played is parked (or discarded if it has
- * no scores). Throws NotFoundError for another board's game, ConflictError for a finished one
- * or one older than 30 days.
+ * no scores). Resuming counts as activity, so an old game is no longer old. Throws NotFoundError
+ * for another board's game and ConflictError for a finished one.
  */
 export async function resumeGame(db, sqid, gameId, { now = new Date() } = {}) {
   return db.transaction(async (tx) => {
@@ -90,10 +94,6 @@ export async function resumeGame(db, sqid, gameId, { now = new Date() } = {}) {
     );
     if (!game) throw new NotFoundError('Game not found');
     if (game.finalized) throw new ConflictError('Finished games cannot be resumed');
-    if (game.abandoned_at) {
-      const cutoff = new Date(now.getTime() - UNFINISHED_MAX_AGE_DAYS * 86400000).toISOString();
-      if (game.last_activity < cutoff) throw new ConflictError('This game is too old to resume');
-    }
 
     // park whatever is being played now (never the game being resumed)
     await tx.run(
@@ -101,7 +101,27 @@ export async function resumeGame(db, sqid, gameId, { now = new Date() } = {}) {
       [now.toISOString(), sqid, gameId]
     );
     await tx.run('UPDATE games SET abandoned_at = NULL WHERE id = ?', [gameId]);
+    if (game.abandoned_at) {
+      // resuming is activity: the game leaves Older games
+      await tx.run('UPDATE stats SET updated_at = ? WHERE game_id = ?', [now.toISOString(), gameId]);
+    }
     await discardEmptyGames(tx, sqid);
     return { id: gameId };
+  });
+}
+
+/** Deletes this board's parked unfinished games with no activity for 30 days. Returns how many. */
+export async function discardOlderGames(db, sqid, { now = new Date() } = {}) {
+  const cutoff = new Date(now.getTime() - UNFINISHED_MAX_AGE_DAYS * 86400000).toISOString();
+  return db.transaction(async (tx) => {
+    const old = await tx.query(
+      `SELECT g.id FROM games g
+       WHERE g.sqid_id = ? AND g.finalized = false AND g.abandoned_at IS NOT NULL AND ${LAST_ACTIVITY} < ?`,
+      [sqid, cutoff]
+    );
+    for (const { id } of old) {
+      await tx.run('DELETE FROM games WHERE id = ?', [id]);
+    }
+    return old.length;
   });
 }

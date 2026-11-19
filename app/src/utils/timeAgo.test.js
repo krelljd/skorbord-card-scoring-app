@@ -11,6 +11,7 @@ describe('timeAgo', () => {
     expect(timeAgo('2026-06-30T10:00:00Z', now)).toBe('2 hours ago')
     expect(timeAgo('2026-06-29T10:00:00Z', now)).toBe('Yesterday')
     expect(timeAgo('2026-06-27T10:00:00Z', now)).toBe('3 days ago')
+    expect(timeAgo('2026-05-15T12:00:00Z', now)).toBe('May 15')
   })
   it('returns nothing for a bad date', () => {
     expect(timeAgo('nope', now)).toBe('')

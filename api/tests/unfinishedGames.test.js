@@ -56,13 +56,44 @@ test('lists parked and active games with players, newest first, and flags the ac
   assert.equal(list[1].win_condition_value, 121)
 })
 
-test('hides parked games older than 30 days but keeps the rows', async () => {
+test('flags parked games with no activity for 30 days as old', async () => {
   await db.run("DELETE FROM games")
   const stale = await game({ scores: [5, 3], parked: true, activity: '2026-05-01T10:00:00Z' })
   const fresh = await game({ scores: [5, 3], parked: true, activity: '2026-06-20T10:00:00Z' })
   const list = await svc.listUnfinished(db, 's1', { now: NOW })
-  assert.deepEqual(ids(list), [fresh])
-  assert.equal(await exists(stale), true)
+  assert.deepEqual(ids(list), [fresh, stale])
+  assert.deepEqual(list.map((g) => g.is_old), [false, true])
+})
+
+test('the active game is never old', async () => {
+  await db.run("DELETE FROM games")
+  await game({ scores: [5, 3], activity: '2026-05-01T10:00:00Z' })
+  const [only] = await svc.listUnfinished(db, 's1', { now: NOW })
+  assert.equal(only.is_active, true)
+  assert.equal(only.is_old, false)
+})
+
+test('resuming an old game makes it recent again', async () => {
+  await db.run("DELETE FROM games")
+  const stale = await game({ scores: [5, 3], parked: true, activity: '2026-05-01T10:00:00Z' })
+  const playing = await game({ scores: [9, 4] })
+  await svc.resumeGame(db, 's1', stale, { now: NOW })
+  // park it again by resuming the other game: it is no longer old
+  await svc.resumeGame(db, 's1', playing, { now: NOW })
+  const list = await svc.listUnfinished(db, 's1', { now: NOW })
+  assert.equal(list.find((g) => g.id === stale).is_old, false)
+})
+
+test('discard older deletes only parked games over 30 days old on this board', async () => {
+  await db.run("DELETE FROM games")
+  const stale = await game({ scores: [5, 3], parked: true, activity: '2026-05-01T10:00:00Z' })
+  const staleActive = await game({ scores: [5, 3], activity: '2026-05-01T10:00:00Z' })
+  const fresh = await game({ scores: [5, 3], parked: true, activity: '2026-06-20T10:00:00Z' })
+  const done = await game({ scores: [121, 100], finalized: 1, activity: '2026-01-01T10:00:00Z' })
+  const other = await game({ sqid: 's2', players: ['p3'], scores: [4], parked: true, activity: '2026-05-01T10:00:00Z' })
+  assert.equal(await svc.discardOlderGames(db, 's1', { now: NOW }), 1)
+  assert.equal(await exists(stale), false)
+  for (const id of [staleActive, fresh, done, other]) assert.equal(await exists(id), true)
 })
 
 test('quietly discards games with no scores, keeps games with a committed round or a score', async () => {
@@ -107,15 +138,13 @@ test('resume discards the game being played when it has no scores', async () => 
   assert.equal(await exists(parked), true)
 })
 
-test('resume refuses finished games, other boards, unknown ids and games over 30 days old', async () => {
+test('resume refuses finished games, other boards and unknown ids', async () => {
   await db.run("DELETE FROM games")
   const done = await game({ scores: [121, 100], finalized: 1 })
   const other = await game({ sqid: 's2', players: ['p3'], scores: [4], parked: true })
-  const stale = await game({ scores: [5, 3], parked: true, activity: '2026-05-01T10:00:00Z' })
   await assert.rejects(svc.resumeGame(db, 's1', done, { now: NOW }), { name: 'ConflictError' })
   await assert.rejects(svc.resumeGame(db, 's1', other, { now: NOW }), { name: 'NotFoundError' })
   await assert.rejects(svc.resumeGame(db, 's1', 'nope', { now: NOW }), { name: 'NotFoundError' })
-  await assert.rejects(svc.resumeGame(db, 's1', stale, { now: NOW }), { name: 'ConflictError' })
 })
 
 test('resuming the game already active changes nothing', async () => {

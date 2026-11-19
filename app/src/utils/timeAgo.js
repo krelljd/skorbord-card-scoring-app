@@ -1,4 +1,4 @@
-/** "just now", "2 hours ago", "Yesterday", "3 days ago". Takes an ISO string or Date. */
+/** "Just now", "2 hours ago", "Yesterday", "3 days ago", then a date ("Sep 30") from 30 days on. */
 export function timeAgo(when, now = new Date()) {
   const ms = now.getTime() - new Date(when).getTime()
   if (!Number.isFinite(ms)) return ''
@@ -9,5 +9,6 @@ export function timeAgo(when, now = new Date()) {
   if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
   const days = Math.floor(hours / 24)
   if (days === 1) return 'Yesterday'
-  return `${days} days ago`
+  if (days < 30) return `${days} days ago`
+  return new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
