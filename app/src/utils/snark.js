@@ -70,7 +70,45 @@ const LINES = [
 
   // Milestones
   { id: 'milestone-1', tone: 'mild', fn: (f) => f.milestone && `Game ${f.milestone} is coming up. A round number deserves a good fight.` },
-  { id: 'milestone-2', tone: 'mild', fn: (f) => f.count >= 5 && `Game ${f.nextGame} together. You two should get a room.` }
+  { id: 'milestone-2', tone: 'mild', fn: (f) => f.count >= 5 && `Game ${f.nextGame} together. You two should get a room.` },
+
+  // More Spicy lines (Nov 2026)
+  { id: 'streak-5', tone: 'spicy', fn: (f, { name }) => f.streak && `${f.streak.length} straight for ${name(f.streak.playerId)}. Somebody should check the shuffle.` },
+  { id: 'streak-6', tone: 'spicy', fn: (f, { name }) => f.streak && `${name(f.streak.playerId)} has won ${f.streak.length} in a row. Competition is a strong word for this.` },
+  { id: 'streak-7', tone: 'spicy', fn: (f, { name }) => f.streak && `${name(f.streak.playerId)}'s ${f.streak.length}-game streak is less a hot streak and more a lifestyle.` },
+  { id: 'streak-8', tone: 'spicy', fn: (f, { name }) => f.streak && `${f.streak.length} in a row for ${name(f.streak.playerId)}. The rest of you are a warm-up act.` },
+  { id: 'drought-4', tone: 'spicy', fn: (f, { name }) => f.drought && `${name(f.drought.playerId)} hasn't won in ${f.drought.games} games. Hope is free, at least.` },
+  { id: 'drought-5', tone: 'spicy', fn: (f, { name }) => f.drought && f.drought.days >= 1 && `${plural(f.drought.days, 'day')} since ${name(f.drought.playerId)} last won. Archaeologists are interested.` },
+  { id: 'drought-6', tone: 'spicy', fn: (f, { name }) => f.drought?.date && `${name(f.drought.playerId)} last won on ${f.drought.date}. The memory is fading.` },
+  { id: 'drought-7', tone: 'spicy', fn: (f, { name }) => f.drought && `${plural(f.drought.games, 'game')} without a win for ${name(f.drought.playerId)}. Playing for exposure?` },
+  { id: 'tied-4', tone: 'spicy', fn: (f) => f.tied && `Tied at ${f.top} each. Nobody has earned the right to trash talk.` },
+  { id: 'tied-5', tone: 'spicy', fn: (f) => f.tied && `Level at ${f.top}. Everyone is equally mediocre. Together.` },
+  { id: 'lead-3', tone: 'spicy', fn: (f, { name }) => f.leadChange && `${name(f.leadChange.newId)} leads the series and ${name(f.leadChange.oldId)} has a fresh excuse. Both are accurate.` },
+  { id: 'lead-4', tone: 'spicy', fn: (f, { name }) => f.leadChange && `${name(f.leadChange.oldId)} held the series lead right up until it mattered.` },
+  { id: 'blowout-3', tone: 'spicy', fn: (f, { name }) => f.blowout && `${name(f.blowout.winnerId)} once won by ${f.blowout.margin} at ${f.blowout.typeName}. That wasn't a game. That was a hostage situation.` },
+  { id: 'blowout-4', tone: 'spicy', fn: (f) => f.blowout && `The record margin is ${f.blowout.margin} points. Somebody still has the bruise.` },
+  { id: 'closest-3', tone: 'spicy', fn: (f) => f.closest && `The closest game ended ${plural(f.closest.margin, 'point')} apart. Everyone still insists they were robbed.` },
+  { id: 'closest-4', tone: 'spicy', fn: (f) => f.closest && `A ${f.closest.margin}-point finish, and somebody still lost. Cold.` },
+  { id: 'close-3', tone: 'spicy', fn: (f, { name }) => f.closeRecord && `${name(f.closeRecord.playerId)} is ${f.closeRecord.wins}–${f.closeRecord.losses} in games decided by 5 or fewer. Ice in the veins, or luck. Pick one.` },
+  { id: 'close-4', tone: 'spicy', fn: (f, { name }) => f.closeRecord && `${name(f.closeRecord.playerId)} is ${f.closeRecord.wins}–${f.closeRecord.losses} when it's tight. The rest of you fold when it counts.` },
+  { id: 'rematch-3', tone: 'spicy', fn: (f, { name }) => f.rematch && `${name(f.rematch.playerId)} wins ${f.rematch.pct}% of rematches. Losing is the only thing that motivates them.` },
+  { id: 'rematch-4', tone: 'spicy', fn: (f, { name }) => f.rematch && `Beat ${name(f.rematch.playerId)} and you'll regret it. ${f.rematch.pct}% of rematches go their way.` },
+  { id: 'owns-4', tone: 'spicy', fn: (f, { name }) => f.owns && `${name(f.owns.playerId)} is ${f.owns.count}–0 at ${f.owns.typeName}. At this point it's a donation.` },
+  { id: 'owns-5', tone: 'spicy', fn: (f, { name }) => f.owns && `${f.owns.typeName} belongs to ${name(f.owns.playerId)}. Everyone else is just visiting.` },
+  { id: 'weekday-3', tone: 'spicy', fn: (f, { name }) => f.weekday && `${name(f.weekday.playerId)} is ${f.weekday.count}–0 on ${f.weekday.weekday}s. The rest of you should call in sick.` },
+  { id: 'weekday-4', tone: 'spicy', fn: (f, { name }) => f.weekday && `Never play ${name(f.weekday.playerId)} on a ${f.weekday.weekday}. The record says so.` },
+  { id: 'skunk-3', tone: 'spicy', fn: (f, { name }) => f.skunked && `${name(f.skunked.playerId)} has been skunked ${plural(f.skunked.count, 'time')}. Have you considered a different hobby?` },
+  { id: 'skunk-4', tone: 'spicy', fn: (f, { name }) => f.skunked && `${plural(f.skunked.count, 'skunk')} for ${name(f.skunked.playerId)}. That's not luck, it's a pattern.` },
+  { id: 'blown-2', tone: 'spicy', fn: (f, { name }) => f.blownLead && `${name(f.blownLead.playerId)} blew a ${f.blownLead.points}-point lead. That takes real talent.` },
+  { id: 'comeback-2', tone: 'spicy', fn: (f, { name }) => f.comebackRecord && `${name(f.comebackRecord.playerId)} once climbed back from ${f.comebackRecord.points} down. Nobody here is safe.` },
+  { id: 'wild-2', tone: 'spicy', fn: (f) => f.wildGame && `${f.wildGame.changes} lead changes in one game. Nobody here knows how to close.` },
+  { id: 'longest-2', tone: 'spicy', fn: (f) => f.longestGame && `One game ran ${f.longestGame.rounds} rounds. You all refused to lose properly.` },
+  { id: 'shortest-2', tone: 'spicy', fn: (f) => f.shortestGame && `The shortest game took ${f.shortestGame.rounds} rounds. That wasn't a rivalry, it was an ambush.` },
+  { id: 'dealer-3', tone: 'spicy', ctx: ['pregame'], fn: (f, { name }) => f.dealerWinner && `${name(f.dealerWinner.playerId)} wins ${f.dealerWinner.pct}% when dealing first. Coincidence is wearing thin.` },
+  { id: 'dealer-4', tone: 'spicy', ctx: ['pregame'], fn: (f) => f.firstDealer && `The first dealer wins ${f.firstDealer.pct}% of the time. Fight for the shuffle.` },
+  { id: 'milestone-3', tone: 'spicy', fn: (f) => f.milestone && `Game ${f.milestone} is next. Time to find out who's carrying whom.` },
+  { id: 'milestone-4', tone: 'spicy', fn: (f) => f.count >= 5 && `Game ${f.nextGame} together. At this point it's less a rivalry and more a habit.` },
+  { id: 'milestone-5', tone: 'spicy', fn: (f) => f.count >= 5 && `${f.count} games in and nobody has learned a thing.` }
 ]
 
 /** The three first-game lines on the Stats empty state. They need no history. */

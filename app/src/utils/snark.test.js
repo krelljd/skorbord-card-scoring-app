@@ -118,3 +118,27 @@ describe('other lines', () => {
     expect([...texts].some((t) => /lopsided/.test(t))).toBe(false)
   })
 })
+
+describe('more Spicy lines', () => {
+  it('add only Spicy lines, none with unfilled blanks, for two and three players', () => {
+    const three = [...players, { id: 'c', name: 'Cy' }]
+    const timeline = [game(1, 'a', 40), game(2, 'a', 12), game(3, 'a', 2), game(4, 'a', 3), game(5, 'a', 8)]
+    for (const ps of [players, three]) {
+      const facts = rivalryFacts({ players: ps, timeline, now })
+      const mild = textsFor('mild', facts, ps)
+      const spicy = textsFor('spicy', facts, ps)
+      expect([...mild].some((id) => /-(5|6|7|8)$/.test(id) && id.startsWith('streak'))).toBe(false)
+      expect(spicy.has('streak-5') || spicy.has('streak-6') || spicy.has('streak-7') || spicy.has('streak-8')).toBe(true)
+      for (let i = 0; i < 300; i++) {
+        const line = pickLine({ level: 'spicy', context: 'history', facts, players: ps, rand: () => (i % 97) / 97 })
+        expect(line.text).not.toMatch(/undefined|NaN|\{|\}/)
+      }
+    }
+  })
+
+  it('has unique ids', async () => {
+    const src = (await import('node:fs')).readFileSync('src/utils/snark.js', 'utf8')
+    const ids = [...src.matchAll(/id: '([a-z]+-\d+)'/g)].map((m) => m[1])
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+})
